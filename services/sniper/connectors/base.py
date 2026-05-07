@@ -10,7 +10,7 @@ from playwright.async_api import async_playwright, Page
 from contextlib import asynccontextmanager
 
 from agentbay import AsyncAgentBay
-from agentbay import ExtractOptions, CreateSessionParams, BrowserContext, BrowserOption, BrowserScreen, BrowserFingerprint
+from agentbay import ExtractOptions, CreateSessionParams, BrowserContext as AgentBayContext, BrowserOption, BrowserScreen, BrowserFingerprint
 from config.settings import global_settings
 from utils.logger import logger
 from utils.exceptions import ContextNotFoundException, SessionCreationException, BrowserInitializationException
@@ -67,7 +67,7 @@ class BaseConnector(ABC):
         session_result = await self.agent_bay.create(
             CreateSessionParams(
                 image_id="browser_latest",
-                browser_context=BrowserContext(context_result.context.id, auto_upload=True)
+                browser_context=AgentBayContext(context_result.context.id, auto_upload=True)
             )
         )
 

@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-Sanic应用配置
-"""
+"""Sanic 应用配置"""
 from sanic import Sanic
 from sanic.config import Config
 from sanic.request import Request
@@ -12,160 +10,134 @@ from config.settings import settings, create_db_config
 from utils.logger import logger
 from tortoise import Tortoise
 from types import SimpleNamespace
-import signal
 import asyncio
-import sys
+
+
+APP_SESSION_LABEL = "micro-sniper"
 
 
 def create_app() -> Sanic:
-    """创建Sanic应用实例"""
     app: Sanic[Config, SimpleNamespace] = Sanic(settings.app.name)
-
-    # 配置
     app.config.REQUEST_MAX_SIZE = 1024 * 1024 * 200
-
-    # 超时配置（适配二维码登录等长时间操作）
-    app.config.REQUEST_TIMEOUT = 300  # 请求超时：5分钟
-    app.config.RESPONSE_TIMEOUT = 300  # 响应超时：5分钟
-
+    app.config.REQUEST_TIMEOUT = 300
+    app.config.RESPONSE_TIMEOUT = 300
     app.ctx.settings = settings
 
-    # 静态文件服务（启用 index 参数处理目录访问）
     app.static('/static', './static', name='static_files', index='index.html')
+    app.static('/', './static/index.html', name='index')
 
-    # 扩展
     Extend(app)
-
-    # CORS
-    CORS(
-        app,
-        resources={r"/*": {"origins": "*"}},
-        supports_credentials=True,
-    )
-
-    # WebSocket
+    CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
     app.enable_websocket()
 
     # 中间件
     from middleware.request_context import RequestContextMiddleware
     RequestContextMiddleware(app)
-    
-    # 身份验证中间件
     from middleware.auth import AuthMiddleware
     AuthMiddleware(app)
-    
-    # 异常处理
     from middleware.exception_handler import ExceptionHandlerMiddleware
     ExceptionHandlerMiddleware(app)
-    
-    # 注册路由
-    register_routes(app)
-    
-    # 数据库初始化
-    setup_database(app)
 
-    # Playwright 初始化
+    register_routes(app)
+    setup_database(app)
     setup_playwright(app)
 
     return app
 
 
 def register_routes(app: Sanic):
-    """注册路由"""
-    
-    # 健康检查
     @app.route("/health")
     async def health_check(request: Request):
-        """健康检查"""
-        return {"status": "ok", "service": "aether"}
-    
-    # 注册业务路由
-    from api.routes.image import bp as image_bp
-    from api.routes.identity import identity_bp
-    from api.routes.connectors import connectors_bp
-    from api.routes.callback import callback_bp
+        return {"status": "ok", "service": "micro-sniper"}
+
+    from api.routes.contexts import contexts_bp
     from api.routes.sniper import sniper_bp
-    from api.routes.human_interaction import human_interaction_bp
-    app.blueprint(image_bp)
-    app.blueprint(identity_bp)
-    app.blueprint(connectors_bp)
-    app.blueprint(callback_bp)
+
+    app.blueprint(contexts_bp)
     app.blueprint(sniper_bp)
-    app.blueprint(human_interaction_bp)
 
 
 def setup_database(app: Sanic):
-    """设置数据库连接"""
-
     @app.before_server_start
     async def create_db(app: Sanic):
-        # 初始化ORM
         await Tortoise.init(config=create_db_config())
         await Tortoise.generate_schemas()
-        logger.info(f"✅ 初始化ORM成功")
+        logger.info("Database initialized")
+        await cleanup_startup_resources()
 
     @app.after_server_stop
     async def close_db(app: Sanic):
         await Tortoise.close_connections()
-        logger.info("✅ 数据库连接已关闭")
+        logger.info("Database connections closed")
 
 
 def setup_playwright(app: Sanic):
-    """设置全局的 Playwright 实例"""
-
     @app.before_server_start
     async def init_playwright(app: Sanic):
-        """初始化 Playwright"""
-        logger.info("🎭 初始化 Playwright...")
+        logger.info("Initializing Playwright...")
         app.ctx.playwright = await async_playwright().start()
-
-        # 启动全局取消监听器
-        from api.routes.sniper import cancel_manager
-        await cancel_manager.start_listener()
-        logger.info("✅ 全局取消监听器已启动")
-
-        # 注册信号处理器（处理 Ctrl+C 和 kill 命令）
-        def signal_handler(signum, frame):
-            """处理 SIGTERM 和 SIGINT 信号"""
-            import signal
-            signal_name = signal.Signals(signum).name
-            logger.warning(f"收到信号 {signal_name}，正在清理资源...")
-
-            # 创建新的事件循环来执行清理
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-            try:
-                # 清理所有分布式锁
-                from services.sniper.connectors import ConnectorService
-                loop.run_until_complete(ConnectorService.cleanup_all_locks())
-                logger.info("✅ 分布式锁已清理（信号处理器）")
-            except Exception as e:
-                logger.error(f"清理分布式锁时出错: {e}")
-            finally:
-                loop.close()
-                sys.exit(0)
-
-        # 注册 SIGTERM 和 SIGINT 信号处理器
-        import signal
-        signal.signal(signal.SIGTERM, signal_handler)
-        signal.signal(signal.SIGINT, signal_handler)
-        logger.info("✅ 信号处理器已注册")
+        logger.info("Playwright initialized")
 
     @app.before_server_stop
     async def cleanup_playwright(app: Sanic):
-        """清理 Playwright 资源和分布式锁"""
-        logger.info("🎭 清理 Playwright 资源...")
+        logger.info("Cleaning up Playwright...")
         if hasattr(app.ctx, 'playwright'):
             await app.ctx.playwright.stop()
-            logger.info("✅ Playwright 资源已清理")
+            logger.info("Playwright cleaned up")
 
-        # 停止全局取消监听器
-        from api.routes.sniper import cancel_manager
-        await cancel_manager.stop_listener()
-        logger.info("✅ 全局取消监听器已停止")
 
-        # 清理所有活跃任务的分布式锁
-        from services.sniper.connectors import ConnectorService
-        await ConnectorService.cleanup_all_locks()
-        logger.info("✅ 分布式锁已清理")
+async def cleanup_startup_resources():
+    """应用启动时清理上一次进程遗留的任务和云浏览器会话。"""
+    from agentbay import AsyncAgentBay
+    from models.context import BrowserContext, ContextStatus
+    from models.task import Task, TaskStatus
+
+    active_statuses = [
+        TaskStatus.PENDING.value,
+        TaskStatus.RUNNING.value,
+        TaskStatus.WAITING_HUMAN_INPUT.value,
+    ]
+
+    tasks = await Task.filter(status__in=active_statuses)
+    for task in tasks:
+        await task.cancel()
+    if tasks:
+        logger.warning(f"Startup cleanup cancelled {len(tasks)} stale task(s)")
+
+    released = await BrowserContext.filter(status=ContextStatus.IN_USE.value).update(
+        status=ContextStatus.LOGGED_IN.value
+    )
+    if released:
+        logger.warning(f"Startup cleanup released {released} in-use browser context(s)")
+
+    if not settings.agentbay.api_key:
+        logger.warning("Startup cleanup skipped AgentBay session cleanup: missing API key")
+        return
+
+    agent_bay = AsyncAgentBay(api_key=settings.agentbay.api_key)
+    deleted = 0
+    page = 1
+    limit = 50
+
+    while True:
+        result = await agent_bay.list(labels={"app": APP_SESSION_LABEL}, page=page, limit=limit)
+        if not result.success:
+            logger.warning(f"Startup cleanup failed to list AgentBay sessions: {result.error_message}")
+            break
+
+        session_ids = result.session_ids or []
+        for session_id in session_ids:
+            try:
+                session_result = await agent_bay.get(session_id)
+                if session_result.success and session_result.session:
+                    await agent_bay.delete(session_result.session, sync_context=False)
+                    deleted += 1
+            except Exception as e:
+                logger.warning(f"Startup cleanup failed to delete AgentBay session {session_id}: {e}")
+
+        if len(session_ids) < limit or deleted >= result.total_count:
+            break
+        page += 1
+
+    if deleted:
+        logger.warning(f"Startup cleanup deleted {deleted} AgentBay session(s)")

@@ -40,7 +40,7 @@ class DatabaseConfig(BaseModel):
     port: int = Field(default=5432, description="数据库端口")
     user: Optional[str] = Field(default=None, description="数据库用户名")
     password: Optional[str] = Field(default="", description="数据库密码")
-    name: str = Field(default="browser_automation", description="数据库名")
+    name: str = Field(default="micro-sniper", description="数据库名")
     schema_name: str = Field(default="public", description="模式名")
     max_connections: int = Field(default=100, description="最大连接数")
     min_connections: int = Field(default=10, description="最小连接数")
@@ -55,19 +55,10 @@ class LoggerConfig(BaseModel):
     file_retention: str = Field(default="30 days", description="")
 
 
-class ExternalServiceConfig(BaseModel):
-    """外部服务配置"""
-    ezlink_base_url: Optional[str] = Field(default=None, description="EzLink API基础URL")
-    ezlink_api_key: Optional[str] = Field(default=None, description="EzLink API密钥")
-    vectorai_base_url: Optional[str] = Field(default=None, description="VectorAI API基础URL")
-    vectorai_api_key: Optional[str] = Field(default=None, description="VectorAI API密钥")
-    aliyun_base_url: Optional[str] = Field(default=None, description="阿里云基础URL")
-    aliyun_api_key: Optional[str] = Field(default=None, description="阿里云API密钥")
-
-
 class SecurityConfig(BaseModel):
     """安全配置"""
-    encryption_key: Optional[str] = Field(default=None, description="apikey的加密密钥")
+    api_key: Optional[str] = Field(default=None, description="API Key（前端认证用）")
+    encryption_key: Optional[str] = Field(default=None, description="数据加密密钥")
 
 
 class OSSConfig(BaseModel):
@@ -76,13 +67,6 @@ class OSSConfig(BaseModel):
     access_key_secret: Optional[str] = Field(default=None, description="OSS访问密钥Secret")
     endpoint: str = Field(default="https://oss-cn-beijing.aliyuncs.com", description="OSS端点")
     bucket_name: Optional[str] = Field(default=None, description="OSS存储桶名称")
-
-
-class WechatConfig(BaseModel):
-    """微信连接器配置"""
-    rss_url: Optional[str] = Field(default=None, description="微信公众号订阅源URL")
-    rss_timeout: int = Field(default=30, description="订阅源请求超时时间(秒)")
-    rss_buffer_size: int = Field(default=8192, description="流式读取缓冲区大小")
 
 
 class RedisConfig(BaseModel):
@@ -98,14 +82,6 @@ class RedisConfig(BaseModel):
 class TaskConfig(BaseModel):
     """任务配置"""
     timeout: int = Field(default=60*10, description="任务超时时间（秒）")
-
-class IMConfig(BaseModel):
-    """微信连接器配置"""
-    wechat_corpid: str = Field(default=None, description="企业微信的企业id")
-    wechat_secret: str = Field(default=None, description="企业微信的应用密钥")
-    wechat_agent_id: int = Field(default=8192, description="企业微信的应用id")
-    wechat_token: str = Field(default=None, description="解密token")
-    wechat_encoding_aes_key: str = Field(default=None, description="解密字符串")
 # ==================================
 # 全局设置
 # ==================================
@@ -116,11 +92,8 @@ class GlobalSettings(BaseSettings):
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
     redis: RedisConfig = Field(default_factory=RedisConfig)
     agentbay: AgentBayConfig = Field(default_factory=AgentBayConfig)
-    external_service: ExternalServiceConfig = Field(default_factory=ExternalServiceConfig)
     security: SecurityConfig = Field(default_factory=SecurityConfig)
     oss: OSSConfig = Field(default_factory=OSSConfig)
-    wechat: WechatConfig = Field(default_factory=WechatConfig)
-    im: IMConfig = Field(default_factory=IMConfig)
     task: TaskConfig = Field(default_factory=TaskConfig)
 
     model_config = SettingsConfigDict(
@@ -161,14 +134,13 @@ def create_db_config():
                     "server_settings": {
                         "application_name": settings.app.name,
                     },
-                    "ssl": "prefer",
                 }
             }
         },
         "apps": {
             "models": {
                 "models": [
-                    "models.identity",
+                    "models.context",
                     "models.task"
                 ],
                 "default_connection": "default"

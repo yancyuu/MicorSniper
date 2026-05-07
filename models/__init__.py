@@ -1,12 +1,9 @@
-from .identity import ApiKey
-from .connectors import PlatformType, LoginMethod
+from .context import BrowserContext, ContextStatus
 from .task import Task, TaskStatus
 
 __all__ = [
-    "ApiKey",
-    "PlatformType",
-    "LoginMethod",
+    "BrowserContext",
+    "ContextStatus",
     "Task",
     "TaskStatus",
 ]
-

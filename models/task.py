@@ -36,8 +36,11 @@ class Task(Model):
     id = UUIDField(pk=True, default=uuid.uuid4, description="任务唯一标识")
     source = CharField(50, description="请求来源：system, api, user等")
     source_id = CharField(100, description="请求来源ID：用户ID、服务名等")
-    task_type = CharField(50, description="任务类型：trend_analysis, creator_monitor等")
-    params = JSONField(null=True, description="任务执行参数（用于重试）")
+    task_type = CharField(50, description="任务类型")
+    context_id = UUIDField(null=True, description="关联的浏览器上下文ID")
+    params = JSONField(null=True, description="任务执行参数")
+    screenshot_url = CharField(500, default="", description="最新截图URL")
+    browser_url = CharField(2000, default="", description="浏览器实时访问URL")
 
     # 状态管理
     status = CharField(20, default=TaskStatus.PENDING.value, description="任务状态")
@@ -80,44 +83,18 @@ class Task(Model):
         timeout_seconds: int = 120,
         step: int = None
     ):
-        """通用的人类交互等待方法
-
-        Args:
-            interaction_type: 交互类型（login_confirm, content_review, image_select 等）
-            data: 交互数据（会传递给前端渲染）
-            resume_point: 恢复点标识（任务重试时从这里继续）
-            timeout_seconds: 超时时间（秒）
-            step: 当前步骤编号（用于日志记录）
-        """
-        from models.interactions import HumanInteraction, InteractionType
-
+        """等待人类交互"""
         self.status = TaskStatus.WAITING_HUMAN_INPUT
 
-        # 创建交互信息
-        interaction = HumanInteraction(
-            interaction_type=InteractionType(interaction_type),
-            task_id=str(self.id),
-            task_step=step or len(self.logs),
-            data=data,
-            timeout_seconds=timeout_seconds,
-            resume_point=resume_point
-        )
-
-        # 保存交互信息到 result
         self.result = {
             "human_interaction_required": True,
-            "interaction": interaction.model_dump(),
-            "interaction_type": interaction_type
+            "interaction_type": interaction_type,
+            "data": data,
         }
 
-        # 记录日志
         step_name = {
             "login_confirm": "等待登录确认",
             "content_review": "等待内容审核",
-            "image_select": "等待图片选择",
-            "text_edit": "等待文本编辑",
-            "choice_select": "等待选项选择",
-            "custom_approval": "等待自定义审批"
         }.get(interaction_type, f"等待人类交互: {interaction_type}")
 
         await self.log_step(
@@ -129,7 +106,6 @@ class Task(Model):
         )
 
         await self.save()
-        return interaction
 
     async def complete(self, result_data: dict = None):
         """完成任务并上传结果到OSS"""
@@ -248,6 +224,9 @@ class Task(Model):
             "task_type": self.task_type,
             "status": self.status,
             "progress": self.progress,
+            "context_id": str(self.context_id) if self.context_id else None,
+            "browser_url": self.browser_url,
+            "screenshot_url": self.screenshot_url,
             "summary": "\n".join(summary_parts),
             "logs": self.logs,
             "result": self.result,

@@ -15,7 +15,7 @@ from utils.exceptions import ContextNotFoundException, SessionCreationException,
 from utils.oss import oss_client
 from agentbay import ActOptions
 from models.connectors import PlatformType
-from agentbay import CreateSessionParams, BrowserContext, BrowserOption, BrowserScreen, BrowserFingerprint
+from agentbay import CreateSessionParams, BrowserContext as AgentBayContext, BrowserOption, BrowserScreen, BrowserFingerprint
 
 
 class XiaohongshuConnector(BaseConnector):
@@ -48,7 +48,7 @@ class XiaohongshuConnector(BaseConnector):
         session_res = await self.agent_bay.create(
             CreateSessionParams(
                 image_id="browser_latest",
-                browser_context=BrowserContext(context_res.context.id, auto_upload=True)
+                browser_context=AgentBayContext(context_res.context.id, auto_upload=True)
             )
         )
         if not session_res.success:
@@ -124,7 +124,7 @@ class XiaohongshuConnector(BaseConnector):
         verify_session_res = await self.agent_bay.create(
             CreateSessionParams(
                 image_id="browser_latest",
-                browser_context=BrowserContext(context_res.context.id, auto_upload=False)
+                browser_context=AgentBayContext(context_res.context.id, auto_upload=False)
             )
         )
         if not verify_session_res.success:
