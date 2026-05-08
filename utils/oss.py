@@ -55,7 +55,8 @@ class OSSAsyncClient:
         config = Config(
             region=self.region,
             endpoint=self.endpoint,
-            credentials_provider=credentials_provider
+            credentials_provider=credentials_provider,
+            insecure_skip_verify=True,
         )
         
         # 创建异步客户端

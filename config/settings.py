@@ -141,7 +141,8 @@ def create_db_config():
             "models": {
                 "models": [
                     "models.context",
-                    "models.task"
+                    "models.task",
+                    "models.product_link",
                 ],
                 "default_connection": "default"
             }

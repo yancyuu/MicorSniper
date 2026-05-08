@@ -11,6 +11,5 @@ if __name__ == '__main__':
         host="0.0.0.0",
         port=settings.app.port,
         debug=settings.app.debug,
-        auto_reload=settings.app.env == "dev"
     )
 

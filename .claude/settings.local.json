@@ -4,7 +4,8 @@
       "Bash(python3:*)",
       "Bash(curl:*)",
       "Bash(git fetch *)",
-      "Bash(PYTHONPATH=. poetry run *)"
+      "Bash(PYTHONPATH=. poetry run *)",
+      "Bash(poetry run *)"
     ]
   }
 }

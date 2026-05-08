@@ -15,6 +15,7 @@ from agentbay import (
 from config.settings import global_settings
 from models.task import Task
 from models.context import BrowserContext
+from models.product_link import ProductLink
 from utils.logger import logger
 
 
@@ -200,7 +201,7 @@ async def run_taobao_search(task: Task, ctx: BrowserContext):
     """淘宝关键词搜索主函数"""
     params = task.params or {}
     keywords = params.get("keywords", [])
-    limit = params.get("limit", 1000)
+    limit = params.get("limit") or 0  # 0 表示不限
 
     if not keywords:
         await task.fail("No keywords provided")
@@ -269,102 +270,101 @@ async def run_taobao_search(task: Task, ctx: BrowserContext):
         task.progress = 5
         await task.save()
 
-        # ========== 阶段一：搜索 & 收集链接 ==========
-        all_search_items = []
+        # ========== 阶段一：搜索 & 收集链接（每页写 ProductLink） ==========
+        total_count = 0
         seen_urls = set()
 
         for i, keyword in enumerate(keywords):
+            remaining = (limit - total_count) if limit else 0
+
             await task.log_step(
                 i + 2, f"搜索关键词: {keyword}",
-                {"keyword": keyword, "limit": limit}, {}, "running"
+                {"keyword": keyword, "limit": limit or "不限"}, {}, "running"
             )
 
-            items = await _search_keyword(session, context, keyword, limit - len(all_search_items))
-            new_items = [it for it in items if it["url"] not in seen_urls]
-            for it in new_items:
-                seen_urls.add(it["url"])
-                it["keyword"] = keyword
-            all_search_items.extend(new_items)
-
-            logger.info(f"[taobao] Keyword '{keyword}': found {len(new_items)} new items, total {len(all_search_items)}")
+            items = await _search_keyword(
+                session, context, keyword, remaining,
+                task=task, seen_urls=seen_urls,
+                total_count_before=total_count,
+                limit=limit, keyword_index=i, keywords_total=len(keywords),
+            )
+            total_count += len(items)
 
             await task.log_step(
                 i + 2, f"搜索关键词: {keyword}",
                 {"keyword": keyword},
-                {"found": len(new_items), "total": len(all_search_items)},
+                {"found": len(items), "total": total_count},
                 "completed"
             )
 
-            progress = int(5 + (i + 1) / len(keywords) * 30)
-            task.progress = min(progress, 35)
-            task.result = {
-                "items": all_search_items[:limit],
-                "total": len(all_search_items),
-                "limit": limit,
-                "keywords": keywords,
-            }
-            await task.save()
-
-            if len(all_search_items) >= limit:
+            if limit and total_count >= limit:
                 logger.info(f"[taobao] Reached limit {limit}, stopping search")
                 break
 
-        search_items = all_search_items[:limit]
+        # ========== 阶段二：详情提取 ==========
+        search_links = await ProductLink.filter(task_id=task.id).order_by("created_at")
+        if limit:
+            search_links = search_links[:limit]
 
-        # ========== 阶段二：详情提取（链接串行，页面内 JS 并行） ==========
-        detail_results = []
+        detail_count = 0
         step_base = len(keywords) + 2
 
-        if search_items:
+        if search_links:
             await task.log_step(
                 step_base, "获取商品详情",
-                {"count": len(search_items)}, {}, "running"
+                {"count": len(search_links)}, {}, "running"
             )
 
             page = await context.new_page()
             try:
-                for j, item in enumerate(search_items):
-                    url = item["url"]
-                    detail = await _extract_detail(page, url)
+                for j, link in enumerate(search_links):
+                    detail = await _extract_detail(page, link.url)
 
-                    # 合并搜索阶段的基本信息
-                    result = {
-                        "keyword": item.get("keyword", ""),
-                        "title": detail.get("title") or item.get("title", ""),
-                        "url": url,
-                        "price": detail.get("price") or item.get("price", ""),
-                        "original_price": detail.get("original_price", ""),
-                        "sales": detail.get("sales") or item.get("sales", ""),
-                        "main_images": detail.get("main_images", []),
-                        "shop_name": detail.get("shop_name") or item.get("shop_name", ""),
-                        "shop_url": detail.get("shop_url", ""),
-                        "location": detail.get("location", ""),
-                        "sku_info": detail.get("sku_info", []),
-                        "detail_images": detail.get("detail_images", []),
-                    }
-                    detail_results.append(result)
+                    # 更新 ProductLink 的详情字段
+                    link.original_price = detail.get("original_price", "")
+                    link.main_images = detail.get("main_images", [])
+                    link.shop_url = detail.get("shop_url", "")
+                    link.location = detail.get("location", "")
+                    link.sku_info = detail.get("sku_info", [])
+                    link.detail_images = detail.get("detail_images", [])
+                    if detail.get("title"):
+                        link.title = detail["title"]
+                    if detail.get("price"):
+                        link.price = detail["price"]
+                    if detail.get("sales"):
+                        link.sales = detail["sales"]
+                    if detail.get("shop_name"):
+                        link.shop_name = detail["shop_name"]
+                    await link.save()
 
-                    progress = int(35 + (j + 1) / len(search_items) * 60)
+                    detail_count += 1
+                    # progress: 详情阶段 35-95%
+                    progress = int(35 + detail_count / len(search_links) * 60)
                     task.progress = min(progress, 95)
 
-                    if j % 5 == 0 or j == len(search_items) - 1:
+                    if j % 5 == 0 or j == len(search_links) - 1:
                         task.result = {
-                            "results": detail_results,
-                            "total": len(detail_results),
+                            "total": detail_count,
+                            "keywords": keywords,
+                            "platform": "taobao",
                         }
                         await task.save()
-                        logger.info(f"[taobao] Detail {j+1}/{len(search_items)}: {result.get('title', 'N/A')[:30]}")
+                        logger.info(f"[taobao] Detail {j+1}/{len(search_links)}: {link.title[:30]}")
             finally:
                 await page.close()
 
             await task.log_step(
                 step_base, "获取商品详情",
-                {"count": len(search_items)},
-                {"details_found": len(detail_results)},
+                {"count": len(search_links)},
+                {"details_found": detail_count},
                 "completed"
             )
 
-        return {"results": detail_results, "total": len(detail_results)}
+        return {
+            "total": detail_count or total_count,
+            "keywords": keywords,
+            "platform": "taobao",
+        }
 
     finally:
         try:
@@ -381,12 +381,19 @@ async def run_taobao_search(task: Task, ctx: BrowserContext):
             logger.warning(f"[taobao] Failed to delete session: {e}")
 
 
-async def _search_keyword(session, context, keyword: str, remaining: int) -> List[Dict]:
-    """搜索关键词，用 agent.act 关弹框，滚动加载，JS 提取商品链接"""
+async def _search_keyword(
+    session, context, keyword: str, remaining: int,
+    task=None, seen_urls: set = None, total_count_before: int = 0,
+    limit: int = 0, keyword_index: int = 0, keywords_total: int = 1,
+) -> List[Dict]:
+    """搜索关键词，滚动加载，JS 提取商品链接。
+
+    如果传了 task，每次滚动后自动写 ProductLink 表并更新 progress。
+    如果不传 task，只返回结果列表（兼容 standalone 模式）。
+    """
     encoded_kw = quote(keyword)
     url = f"https://s.taobao.com/search?q={encoded_kw}&sort=sale-desc"
 
-    # 1. 用 AgentBay agent 导航（更稳健）
     agent = session.browser.agent
     try:
         await agent.navigate(url)
@@ -394,7 +401,6 @@ async def _search_keyword(session, context, keyword: str, remaining: int) -> Lis
         logger.warning(f"[taobao] agent.navigate failed, falling back to CDP")
     await asyncio.sleep(5)
 
-    # 2. 用 agent.act 关闭弹框（AI 驱动，比 JS 更可靠）
     try:
         ret = await agent.act(ActOptions(action="关闭页面上所有弹框、登录提示、广告弹窗"))
         if getattr(ret, "success", False):
@@ -403,7 +409,6 @@ async def _search_keyword(session, context, keyword: str, remaining: int) -> Lis
         logger.warning(f"[taobao] agent.act dismiss failed: {e}")
     await asyncio.sleep(3)
 
-    # 3. 通过 CDP 连接，找到已打开的淘宝页面
     page = None
     for p in context.pages:
         if 'taobao.com' in p.url:
@@ -417,7 +422,6 @@ async def _search_keyword(session, context, keyword: str, remaining: int) -> Lis
     results = []
 
     try:
-        # 等骨架屏消失、真实卡片数据出现
         try:
             await page.wait_for_function(
                 """() => {
@@ -433,29 +437,71 @@ async def _search_keyword(session, context, keyword: str, remaining: int) -> Lis
         except:
             logger.warning(f"[taobao] Wait for data timed out for '{keyword}', trying anyway...")
 
-        # 滚动加载，每次提取
-        max_scrolls = 50  # 最多滚动50次，淘宝每页约44个商品
+        max_scrolls = 50
         for scroll_round in range(max_scrolls):
             items = await page.evaluate(_EXTRACT_SEARCH_JS)
 
-            new_count = 0
+            new_items = []
             seen = {r["url"] for r in results}
             for it in items:
-                if it["url"] and it["url"] not in seen:
-                    results.append(it)
-                    seen.add(it["url"])
-                    new_count += 1
+                u = it.get("url", "")
+                if u and u not in seen:
+                    # 如果有全局去重集合，也检查
+                    if seen_urls and u in seen_urls:
+                        continue
+                    seen.add(u)
+                    if seen_urls:
+                        seen_urls.add(u)
+                    new_items.append(it)
 
-            logger.info(f"[taobao] Scroll {scroll_round+1}: got {new_count} new, total {len(results)}")
+            # 每次滚动后写 ProductLink
+            if task and new_items:
+                await ProductLink.upsert_bulk([
+                    ProductLink(
+                        task_id=task.id,
+                        platform="taobao",
+                        keyword=keyword,
+                        url=it.get("url", ""),
+                        title=it.get("title", ""),
+                        price=it.get("price", ""),
+                        sales=it.get("sales", ""),
+                        shop_name=it.get("shop_name", ""),
+                        image=it.get("image", ""),
+                    )
+                    for it in new_items
+                ])
+                # 每轮滚动打一条日志
+                await task.log_step(
+                    len(task.logs), f"滚动采集第{scroll_round+1}轮: {keyword}",
+                    {"keyword": keyword, "scroll_round": scroll_round + 1},
+                    {"new": len(new_items), "total": total_so_far},
+                    "completed",
+                )
 
-            if len(results) >= remaining:
+            results.extend(new_items)
+            total_so_far = total_count_before + len(results)
+
+            # 更新 progress
+            if task:
+                if limit:
+                    task.progress = min(35, int(5 + total_so_far / limit * 30))
+                else:
+                    task.progress = min(35, int(5 + (keyword_index + scroll_round / max_scrolls) / keywords_total * 30))
+                task.result = {
+                    "total": total_so_far,
+                    "limit": limit or "不限",
+                    "keywords": [k for k in task.params.get("keywords", [])],
+                    "platform": "taobao",
+                }
+                await task.save()
+
+            logger.info(f"[taobao] Scroll {scroll_round+1}: got {len(new_items)} new, total {len(results)}")
+
+            if remaining and len(results) >= remaining:
+                break
+            if not new_items and scroll_round > 2:
                 break
 
-            if new_count == 0 and scroll_round > 2:
-                # 没有新结果，可能到底了
-                break
-
-            # 滚动到底部
             await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
             await asyncio.sleep(1.5)
 
@@ -476,13 +522,11 @@ async def _extract_detail(page, url: str) -> Dict:
         await page.goto(url, timeout=30000, wait_until="domcontentloaded")
         await asyncio.sleep(1.5)
 
-        # 关闭弹窗
         try:
             await page.evaluate(_DISMISS_POPUP_JS)
         except:
             pass
 
-        # JS 一次性提取所有数据
         data = await page.evaluate(_EXTRACT_DETAIL_JS)
         return data or {}
 

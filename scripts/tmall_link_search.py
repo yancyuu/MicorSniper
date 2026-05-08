@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""淘宝关键词搜索链接采集任务。
+"""天猫关键词搜索链接采集任务。
 
-只负责通过关键词搜索淘宝商品链接，不进入详情页。页面动作使用 AgentBay agent，
+只负责通过关键词搜索天猫商品链接，不进入详情页。页面动作使用 AgentBay agent，
 页面数据用 JS 从 DOM 中提取，便于后续详情任务复用这些链接。
 """
 
@@ -32,7 +32,7 @@ _DEFAULT_LIMIT = 1000
 _MAX_LIMIT = 1000
 _DEFAULT_MAX_PAGES = 100
 _DEFAULT_KEYWORDS = ["SKG"]
-_DEFAULT_CONTEXT_KEY = "taobao-context:default:3a4d9c23-c364-465e-90af-5bcbfbbcc73e"
+_DEFAULT_CONTEXT_KEY = "tmall-context:default:placeholder"
 _SCROLL_IDLE_ROUNDS = 2
 
 
@@ -56,9 +56,8 @@ _EXTRACT_PRODUCT_LINKS_JS = """
             const u = new URL(url);
             const host = u.hostname;
             const path = u.pathname;
-            const isTaobao = host.endsWith('taobao.com') || host.endsWith('tmall.com') || host.endsWith('tmall.hk');
-            if (!isTaobao) return false;
-            return path.includes('item.htm') || path.includes('item_o.htm') || host.startsWith('detail.');
+            return (host.endsWith('tmall.com') || host.endsWith('tmall.hk'))
+                && (path.includes('item.htm') || path.includes('item_o.htm') || host.startsWith('detail.'));
         } catch (e) {
             return false;
         }
@@ -73,7 +72,7 @@ _EXTRACT_PRODUCT_LINKS_JS = """
 
     function extractSales(el) {
         const text = el.textContent || '';
-        const m = text.match(/(\\d[\\d,]*\\+?)\\s*(人付款|人收货|人付款|月销|已售)/);
+        const m = text.match(/(\\d[\\d,]*\\+?)\\s*(人付款|人收货|月销|已售|笔|件)/);
         return m ? m[1] + m[2] : '';
     }
 
@@ -88,7 +87,6 @@ _EXTRACT_PRODUCT_LINKS_JS = """
     }
 
     function extractImage(el) {
-        // 优先找图片容器里的第一张图
         const imgWrap = el.querySelector('[class*="img"], [class*="Img"], [class*="pic"], [class*="Pic"], [class*="mainPic"], [class*="MainPic"]');
         if (imgWrap) {
             const img = imgWrap.querySelector('img');
@@ -97,7 +95,6 @@ _EXTRACT_PRODUCT_LINKS_JS = """
                 if (src && !src.includes('spacer') && !src.includes('1x1')) return src.startsWith('//') ? 'https:' + src : src;
             }
         }
-        // 兜底：取卡片内第一张非小图标图片
         for (const img of el.querySelectorAll('img')) {
             const w = parseInt(img.getAttribute('width') || img.naturalWidth || '0');
             const h = parseInt(img.getAttribute('height') || img.naturalHeight || '0');
@@ -135,8 +132,7 @@ _EXTRACT_PRODUCT_LINKS_JS = """
         const cls = el.className ? String(el.className) : '';
         const disabled = el.getAttribute('disabled') !== null ||
             el.getAttribute('aria-disabled') === 'true' ||
-            cls.includes('disabled') ||
-            cls.includes('Disabled');
+            cls.includes('disabled') || cls.includes('Disabled');
         return !disabled;
     });
 
@@ -146,8 +142,6 @@ _EXTRACT_PRODUCT_LINKS_JS = """
         links,
         link_count: links.length,
         has_next: hasNext,
-        skeleton_count: document.querySelectorAll('[class*="boneClass"], [class*="skeleton"], [class*="Skeleton"]').length,
-        body_preview: (document.body ? document.body.innerText : '').slice(0, 300),
         scroll_y: window.scrollY,
         scroll_height: document.documentElement.scrollHeight || document.body.scrollHeight,
     };
@@ -168,8 +162,7 @@ _CLICK_NEXT_PAGE_JS = """
         const cls = el.className ? String(el.className) : '';
         const disabled = el.getAttribute('disabled') !== null ||
             el.getAttribute('aria-disabled') === 'true' ||
-            cls.includes('disabled') ||
-            cls.includes('Disabled');
+            cls.includes('disabled') || cls.includes('Disabled');
         if (disabled) continue;
         if (typeof el.scrollIntoView === 'function') el.scrollIntoView({ block: 'center' });
         if (typeof el.click === 'function') {
@@ -184,15 +177,13 @@ _CLICK_NEXT_PAGE_JS = """
 """
 
 
-async def run_taobao_link_search(task: Task, ctx: BrowserContext) -> dict[str, Any] | None:
-    """按关键词采集淘宝商品链接。"""
+async def run_tmall_link_search(task: Task, ctx: BrowserContext) -> dict[str, Any] | None:
+    """按关键词采集天猫商品链接。"""
     params = task.params or {}
     keywords = _normalize_keywords(params.get("keywords")) or _DEFAULT_KEYWORDS
     raw_limit = params.get("limit")
-    limit = min(int(raw_limit), _MAX_LIMIT) if raw_limit else 0  # 0 = 不限
+    limit = min(int(raw_limit), _MAX_LIMIT) if raw_limit else 0
     max_pages = int(params.get("max_pages") or _DEFAULT_MAX_PAGES)
-    title_required = params.get("title_required", "")
-    title_blacklist = params.get("title_blacklist", [])
 
     if not keywords:
         await task.fail("No keywords provided")
@@ -208,7 +199,7 @@ async def run_taobao_link_search(task: Task, ctx: BrowserContext) -> dict[str, A
     playwright = app.ctx.playwright
     agent_bay = AsyncAgentBay(api_key=global_settings.agentbay.api_key)
 
-    logger.info(f"[taobao_link_search] Using context_key={ctx.context_id}")
+    logger.info(f"[tmall_link_search] Using context_key={ctx.context_id}")
     context_result = await agent_bay.context.get(ctx.context_id, create=False)
     if not context_result.success or not context_result.context:
         await task.fail(f"Context not found: {ctx.context_id}")
@@ -256,11 +247,27 @@ async def run_taobao_link_search(task: Task, ctx: BrowserContext) -> dict[str, A
         browser_context.on("dialog", lambda dialog: dialog.dismiss())
 
         await task.log_step(1, "创建浏览器会话", {"context_id": ctx.context_id}, {"status": "ok"}, "completed")
-        task.progress = 5
-        await task.save()
 
+        # 断点续跑：加载已有链接，从断点页开始
         seen_urls: set[str] = set()
-        total_count = 0
+        existing_links = await ProductLink.filter(task_id=task.id)
+        last_page = 0
+        for link in existing_links:
+            canonical = _canonicalize_product_url(link.url)
+            if canonical:
+                seen_urls.add(canonical)
+            if link.page and link.page > last_page:
+                last_page = link.page
+        total_count = len(existing_links)
+        remaining = max(0, (limit or _MAX_LIMIT) - total_count) if limit else _MAX_LIMIT
+        if total_count:
+            logger.info(f"[tmall_link_search] Resuming: {total_count} existing links, last page={last_page}, remaining={remaining}")
+            task.progress = min(95, int(total_count / (limit or _MAX_LIMIT) * 100))
+            task.result = {"total": total_count, "limit": limit or "不限", "keywords": keywords, "platform": "tmall"}
+            await task.save()
+        else:
+            task.progress = 5
+            await task.save()
 
         for index, keyword in enumerate(keywords):
             if limit and total_count >= limit:
@@ -269,16 +276,15 @@ async def run_taobao_link_search(task: Task, ctx: BrowserContext) -> dict[str, A
             remaining = (limit - total_count) if limit else _MAX_LIMIT
             kw_step = step_counter[0]
             step_counter[0] += 1
-            await task.log_step(kw_step, f"采集淘宝商品链接: {keyword}", {"keyword": keyword, "remaining": "不限" if not limit else remaining}, {}, "running")
+            await task.log_step(kw_step, f"采集天猫商品链接: {keyword}", {"keyword": keyword, "remaining": "不限" if not limit else remaining}, {}, "running")
 
             async def _on_page_done(page_items: list[dict], page_num: int):
                 nonlocal total_count
-                # 空页也记日志
                 if page_items:
                     await ProductLink.upsert_bulk([
                         ProductLink(
                             task_id=task.id,
-                            platform="taobao",
+                            platform="tmall",
                             keyword=keyword,
                             page=page_num,
                             url=item.get("url", ""),
@@ -293,7 +299,6 @@ async def run_taobao_link_search(task: Task, ctx: BrowserContext) -> dict[str, A
                         for item in page_items
                     ])
                     total_count += len(page_items)
-                # progress: 有 limit 按采集量/limit，没 limit 按页码递增
                 if limit:
                     task.progress = min(95, int(5 + total_count / limit * 90))
                 else:
@@ -302,10 +307,9 @@ async def run_taobao_link_search(task: Task, ctx: BrowserContext) -> dict[str, A
                     "total": total_count,
                     "limit": limit or "不限",
                     "keywords": keywords,
-                    "platform": "taobao",
+                    "platform": "tmall",
                 }
                 await task.save()
-                # 每页打一条日志
                 s = step_counter[0]
                 step_counter[0] += 1
                 await task.log_step(
@@ -324,20 +328,18 @@ async def run_taobao_link_search(task: Task, ctx: BrowserContext) -> dict[str, A
                 global_seen=seen_urls,
                 task_id=task.id,
                 on_page_done=_on_page_done,
-                title_required=title_required,
-                title_blacklist=title_blacklist,
+                start_page=last_page if total_count else 1,
             )
 
             await task.log_step(
                 kw_step,
-                f"采集淘宝商品链接: {keyword}",
+                f"采集天猫商品链接: {keyword}",
                 {"keyword": keyword},
                 {"found": keyword_count, "total": total_count},
                 "completed",
             )
             step_counter[0] += 1
 
-        # 从 ProductLink 表取所有链接用于 output
         all_links = await ProductLink.filter(task_id=task.id).order_by("created_at").limit(limit)
         link_urls = [item.url for item in all_links]
         output = json.dumps([item.to_dict() for item in all_links], ensure_ascii=False, indent=2)
@@ -357,12 +359,12 @@ async def run_taobao_link_search(task: Task, ctx: BrowserContext) -> dict[str, A
                 await asyncio.sleep(0.5)
                 await browser.close()
         except Exception as e:
-            logger.warning(f"[taobao_link_search] Failed to close browser: {e}")
+            logger.warning(f"[tmall_link_search] Failed to close browser: {e}")
 
         try:
             await asyncio.wait_for(agent_bay.delete(session, sync_context=False), timeout=30)
         except Exception as e:
-            logger.warning(f"[taobao_link_search] Failed to delete session: {e}")
+            logger.warning(f"[tmall_link_search] Failed to delete session: {e}")
 
 
 async def _collect_keyword_links(
@@ -375,46 +377,37 @@ async def _collect_keyword_links(
     task_id=None,
     on_page_done=None,
     start_page: int = 1,
-    title_required: str = "",
-    title_blacklist: list[str] | None = None,
 ) -> int:
-    """采集单个关键词的商品链接，每页完成后回调 on_page_done(page_items, page_num)。
-
-    Returns:
-        int: 该关键词采集到的链接总数
-    """
     agent = session.browser.agent
-    search_url = f"https://s.taobao.com/search?q={quote(keyword)}&sort=sale-desc&tab=pc_taobao"
     collected: list[dict[str, Any]] = []
 
+    search_url = f"https://list.tmall.com/search_product.htm?q={quote(keyword)}&sort=sale-desc"
     await agent.navigate(search_url)
     await asyncio.sleep(5)
     await _agent_act(agent, "关闭页面上所有弹框、登录提示、广告弹窗。")
-
-    await _agent_act(agent, "点击销量按钮按照销量排序。")
+    await _agent_act(agent, "点击销量进行销量排序。")
 
     # 断点续跑：直接点击目标页码
     if start_page > 1:
         await _agent_act(agent, f"滑动到最下方点击第{start_page}页按钮。")
         await asyncio.sleep(3)
 
-    page = await _get_taobao_page(browser_context, search_url)
+    page = await _get_tmall_page(browser_context, search_url)
     page_index = start_page
     empty_pages = 0
 
     while page_index <= max_pages and len(collected) < remaining:
-        # 检查任务是否被取消
         if task_id:
             t = await Task.filter(id=task_id).first()
             if t and t.status == TaskStatus.CANCELLED.value:
-                logger.info(f"[taobao_link_search] Task cancelled, stopping")
+                logger.info(f"[tmall_link_search] Task cancelled, stopping")
                 break
 
         try:
             await _wait_search_page_ready(page)
             page_links = await _scroll_and_extract_page_links(agent, page, browser_context, search_url)
         except Exception as e:
-            logger.error(f"[taobao_link_search] page.evaluate failed (transport closed?): {e}")
+            logger.error(f"[tmall_link_search] page.evaluate failed (transport closed?): {e}")
             break
 
         page_items = []
@@ -423,20 +416,13 @@ async def _collect_keyword_links(
             if not canonical_url or canonical_url in global_seen:
                 continue
             global_seen.add(canonical_url)
-            # 标题过滤：必须包含核心词 + 不含黑名单词
-            title = raw.get("title", "")
-            if title_required and title_required not in title:
-                continue
-            if title_blacklist and any(b in title for b in title_blacklist):
-                continue
-
             page_items.append(
                 {
                     "keyword": keyword,
                     "page": page_index,
                     "url": canonical_url,
                     "raw_url": raw.get("url", ""),
-                    "title": title,
+                    "title": raw.get("title", ""),
                     "price": raw.get("price", ""),
                     "sales": raw.get("sales", ""),
                     "shop": raw.get("shop", ""),
@@ -447,7 +433,7 @@ async def _collect_keyword_links(
                 break
 
         logger.info(
-            f"[taobao_link_search] keyword={keyword} page={page_index} "
+            f"[tmall_link_search] keyword={keyword} page={page_index} "
             f"new={len(page_items)} page_links={len(page_links)} total={len(collected) + len(page_items)}"
         )
 
@@ -456,14 +442,13 @@ async def _collect_keyword_links(
         else:
             empty_pages = 0
             collected.extend(page_items)
-        # 每页都回写（含空页）
         if on_page_done:
             await on_page_done(page_items, page_index)
 
         if len(collected) >= remaining:
             break
         if empty_pages >= 3:
-            logger.info(f"[taobao_link_search] keyword={keyword} 3 consecutive empty pages, stopping")
+            logger.info(f"[tmall_link_search] keyword={keyword} 3 consecutive empty pages, stopping")
             break
 
         moved = await _go_next_page(agent, page)
@@ -472,7 +457,7 @@ async def _collect_keyword_links(
 
         page_index += 1
         await asyncio.sleep(4)
-        page = await _get_taobao_page(browser_context, search_url)
+        page = await _get_tmall_page(browser_context, search_url)
 
     return len(collected)
 
@@ -487,7 +472,7 @@ async def _scroll_and_extract_page_links(agent, page, browser_context=None, fall
 
     # agent 操作后 page 引用可能失效，重新获取
     if browser_context:
-        fresh = await _get_taobao_page(browser_context, fallback_url)
+        fresh = await _get_tmall_page(browser_context, fallback_url)
         if fresh:
             page = fresh
 
@@ -507,12 +492,12 @@ async def _go_next_page(agent, page) -> bool:
         if await _agent_act(agent, "点击搜索结果列表底部的下一页按钮，进入下一页"):
             return True
     except Exception as e:
-        logger.warning(f"[taobao_link_search] agent.act next page failed: {e}")
+        logger.warning(f"[tmall_link_search] agent.act next page failed: {e}")
 
     try:
         return bool(await page.evaluate(_CLICK_NEXT_PAGE_JS))
     except Exception as e:
-        logger.warning(f"[taobao_link_search] JS next page click failed: {e}")
+        logger.warning(f"[tmall_link_search] JS next page click failed: {e}")
         return False
 
 
@@ -522,19 +507,19 @@ async def _agent_act(agent, instruction: str, retries: int = 3) -> bool:
             ret = await agent.act(ActOptions(action=instruction))
             return bool(getattr(ret, "success", False))
         except Exception as e:
-            logger.warning(f"[taobao_link_search] agent.act failed (attempt {attempt+1}/{retries}): {e}")
+            logger.warning(f"[tmall_link_search] agent.act failed (attempt {attempt+1}/{retries}): {e}")
             if attempt < retries - 1:
                 await asyncio.sleep(3)
     return False
 
 
-async def _get_taobao_page(browser_context, fallback_url: str):
+async def _get_tmall_page(browser_context, fallback_url: str):
     await asyncio.sleep(1)
     for page in browser_context.pages:
         try:
             if page.is_closed():
                 continue
-            if "taobao.com" in page.url or "tmall.com" in page.url:
+            if "tmall.com" in page.url or "tmall.hk" in page.url or "taobao.com" in page.url:
                 return page
         except Exception:
             continue
@@ -549,14 +534,14 @@ async def _wait_search_page_ready(page) -> None:
     try:
         await page.wait_for_function(
             """() => {
-                const links = document.querySelectorAll('a[href*="item.htm"], a[href*="item_o.htm"], a[href*="detail.tmall"]');
+                const links = document.querySelectorAll('a[href*="item.htm"], a[href*="detail.tmall"]');
                 const body = document.body ? document.body.innerText : '';
                 return links.length > 0 || body.includes('没有找到') || body.includes('登录');
             }""",
             timeout=15000,
         )
     except Exception:
-        logger.warning("[taobao_link_search] Search page data wait timed out, extracting current DOM")
+        logger.warning("[tmall_link_search] Search page data wait timed out, extracting current DOM")
 
 
 def _normalize_keywords(value: Any) -> list[str]:
@@ -575,27 +560,25 @@ def _canonicalize_product_url(url: str) -> str:
     if not parsed.netloc:
         return ""
 
+    host = parsed.netloc.lower()
+    if "tmall" not in host:
+        return ""
+
     query = parse_qs(parsed.query)
     item_id = (query.get("id") or query.get("item_id") or [""])[0]
     if not item_id:
-        return ""
+        return url
 
-    host = parsed.netloc.lower()
-    if "tmall" in host:
-        canonical_host = "detail.tmall.com"
-    else:
-        canonical_host = "item.taobao.com"
-
-    return urlunparse(("https", canonical_host, "/item.htm", "", urlencode({"id": item_id}), ""))
+    return urlunparse(("https", "detail.tmall.com", "/item.htm", "", urlencode({"id": item_id}), ""))
 
 
 async def _run_standalone() -> None:
-    parser = argparse.ArgumentParser(description="Standalone Taobao product link search")
-    parser.add_argument("keywords", nargs="*", default=_DEFAULT_KEYWORDS, help="搜索关键词，默认 SKG")
-    parser.add_argument("--context-key", default=os.getenv("TAOBAO_CONTEXT_KEY", _DEFAULT_CONTEXT_KEY))
+    parser = argparse.ArgumentParser(description="Standalone Tmall product link search")
+    parser.add_argument("keywords", nargs="*", default=_DEFAULT_KEYWORDS, help="搜索关键词")
+    parser.add_argument("--context-key", default=os.getenv("TMALL_CONTEXT_KEY", _DEFAULT_CONTEXT_KEY))
     parser.add_argument("--limit", type=int, default=_DEFAULT_LIMIT)
     parser.add_argument("--max-pages", type=int, default=_DEFAULT_MAX_PAGES)
-    parser.add_argument("--output", default="/tmp/taobao_links.json")
+    parser.add_argument("--output", default="/tmp/tmall_links.json")
     args = parser.parse_args()
 
     from playwright.async_api import async_playwright
@@ -610,7 +593,7 @@ async def _run_standalone() -> None:
 
     session_result = await agent_bay.create(
         CreateSessionParams(
-            labels={"app": "micro-sniper", "kind": "standalone", "script": "taobao_link_search"},
+            labels={"app": "micro-sniper", "kind": "standalone", "script": "tmall_link_search"},
             image_id="browser_latest",
             browser_context=AgentBayContext(context_result.context.id, auto_upload=False),
         )

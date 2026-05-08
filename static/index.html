@@ -5,341 +5,324 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Micro Sniper</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Syne:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 :root{
-  --bg-base:#08090c;
-  --bg-0:#0c0e13;--bg-1:#10131a;--bg-2:#161a24;--bg-3:#1c2130;--bg-4:#242a3a;
-  --bd-0:rgba(255,255,255,.035);--bd-1:rgba(255,255,255,.065);--bd-2:rgba(255,255,255,.1);
-  --tx-0:#e8eaf0;--tx-1:#8e96ad;--tx-2:#5a6379;--tx-3:#3c445a;
-  --accent:#5b8def;--accent-hi:#7ea8ff;--accent-lo:#4a72c4;
-  --accent-bg:rgba(91,141,239,.06);--accent-bd:rgba(91,141,239,.15);
-  --accent-glow:rgba(91,141,239,.12);
-  --ok:#3dd68c;--ok-bg:rgba(61,214,140,.06);
-  --err:#ef6b6b;--err-bg:rgba(239,107,107,.06);
-  --warn:#e5a84b;--warn-bg:rgba(229,168,75,.06);
-  --info:#6ba3ef;--info-bg:rgba(107,163,239,.06);
-  --r:8px;--r2:12px;--r3:16px;
-  --f-body:'DM Sans',system-ui,-apple-system,'PingFang SC','Noto Sans SC',sans-serif;
-  --f-mono:'IBM Plex Mono','Menlo',monospace;
-  --shadow:0 4px 24px rgba(0,0,0,.4);
-  --shadow-lg:0 12px 48px rgba(0,0,0,.5);
+  --bg-deep:#060810;
+  --bg-0:#090c14;
+  --bg-1:#0e1220;
+  --bg-2:#141a2e;
+  --bg-3:#1b2240;
+  --bg-4:#242e52;
+  --bd-0:rgba(255,255,255,.04);
+  --bd-1:rgba(255,255,255,.07);
+  --bd-2:rgba(255,255,255,.12);
+  --accent:#5b8def;
+  --accent-dim:#4a78d0;
+  --accent-bg:rgba(91,141,239,.07);
+  --accent-bd:rgba(91,141,239,.18);
+  --accent-glow:rgba(91,141,239,.10);
+  --ok:#34d399;
+  --ok-bg:rgba(52,211,153,.07);
+  --err:#f87171;
+  --err-bg:rgba(248,113,113,.07);
+  --warn:#fbbf24;
+  --warn-bg:rgba(251,191,36,.07);
+  --info:#60a5fa;
+  --info-bg:rgba(96,165,250,.07);
+  --tx-0:#e8ecf4;
+  --tx-1:#8a93b0;
+  --tx-2:#545e7a;
+  --tx-3:#353e58;
+  --font-body:'Outfit',system-ui,-apple-system,'PingFang SC',sans-serif;
+  --font-display:'Syne','Outfit',sans-serif;
+  --font-mono:'IBM Plex Mono',monospace;
+  --radius:10px;
+  --radius-lg:14px;
+  --radius-xl:20px;
+  --shadow:0 4px 32px rgba(0,0,0,.5);
+  --shadow-lg:0 16px 64px rgba(0,0,0,.6);
   --ease:cubic-bezier(.4,0,.2,1);
-  --ease-out:cubic-bezier(0,0,.2,1);
-  --dur:.18s;
+  --dur:.2s;
 }
 html,body{height:100%;overflow:hidden}
-body{font-family:var(--f-body);background:var(--bg-base);color:var(--tx-0);-webkit-font-smoothing:antialiased}
+body{font-family:var(--font-body);background:var(--bg-deep);color:var(--tx-0);-webkit-font-smoothing:antialiased;line-height:1.6}
 
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
-@keyframes fadeInUp{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+@keyframes fadeInUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 @keyframes scaleIn{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:none}}
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes skeletonPulse{0%{background-position:-200% 0}100%{background-position:200% 0}}
-@keyframes dotPulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(.7);opacity:.5}}
+@keyframes dotPulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(.6);opacity:.4}}
 @keyframes toastIn{from{opacity:0;transform:translateX(40px) scale(.95)}to{opacity:1;transform:none}}
 @keyframes toastOut{to{opacity:0;transform:translateX(40px) scale(.95)}}
+@keyframes progressStripe{0%{background-position:0 0}100%{background-position:40px 0}}
 
-.app{display:flex;flex-direction:column;height:100vh;overflow:hidden}
-.app::before{
-  content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
-  background:radial-gradient(ellipse 60% 40% at 10% 0%,rgba(91,141,239,.03),transparent 50%),
-             radial-gradient(ellipse 40% 30% at 95% 100%,rgba(91,141,239,.015),transparent 50%);
-}
+.app{display:flex;flex-direction:column;height:100vh;overflow:hidden;position:relative}
+.app::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;background:radial-gradient(ellipse 80% 50% at 5% 0%,rgba(91,141,239,.02),transparent 60%),radial-gradient(ellipse 50% 40% at 100% 100%,rgba(96,165,250,.01),transparent 50%)}
+.app::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;background-image:radial-gradient(rgba(255,255,255,.015) 1px,transparent 1px);background-size:32px 32px}
 .app>*{position:relative;z-index:1}
 
-/* Header */
-.header{
-  display:flex;align-items:center;justify-content:space-between;
-  height:50px;min-height:50px;padding:0 20px;
-  background:rgba(12,14,19,.85);backdrop-filter:blur(16px) saturate(1.2);
-  border-bottom:1px solid var(--bd-0);
-}
-.logo{display:flex;align-items:center;gap:10px}
-.logo-mark{
-  width:28px;height:28px;border-radius:7px;
-  background:linear-gradient(135deg,var(--accent) 0%,#7c6aef 100%);
-  display:grid;place-items:center;font-weight:700;font-size:12px;color:#fff;
-  box-shadow:0 2px 10px rgba(91,141,239,.2);
-}
-.logo-text{font-size:13.5px;font-weight:600;color:var(--tx-2);letter-spacing:-.01em}
-.logo-text b{color:var(--tx-0);font-weight:700}
-.header-right{display:flex;gap:6px;align-items:center}
+/* ── Header ── */
+.header{display:flex;align-items:center;justify-content:space-between;height:54px;min-height:54px;padding:0 24px;background:rgba(9,12,20,.92);backdrop-filter:blur(20px) saturate(1.3);border-bottom:1px solid var(--bd-0)}
+.logo{display:flex;align-items:center;gap:12px}
+.logo-mark{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--accent) 0%,#818cf8 100%);display:grid;place-items:center;font-family:var(--font-display);font-weight:800;font-size:13px;color:#fff;box-shadow:0 2px 16px rgba(91,141,239,.25)}
+.logo-text{font-family:var(--font-display);font-size:15px;font-weight:700;color:var(--tx-2);letter-spacing:-.02em}
+.logo-text b{color:var(--tx-0);font-weight:800}
+.header-right{display:flex;gap:8px;align-items:center}
 
-/* Buttons */
-.btn{
-  display:inline-flex;align-items:center;justify-content:center;gap:6px;
-  padding:6px 14px;border-radius:var(--r);border:1px solid transparent;
-  font:600 11.5px var(--f-body);cursor:pointer;transition:all var(--dur) var(--ease);
-  white-space:nowrap;outline:none;position:relative;
-}
+/* ── Buttons ── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:7px 16px;border-radius:var(--radius);border:1px solid transparent;font:600 12px var(--font-body);cursor:pointer;transition:all var(--dur) var(--ease);white-space:nowrap;outline:none;letter-spacing:-.01em}
 .btn:focus-visible{box-shadow:0 0 0 2px var(--accent-bg),0 0 0 4px var(--accent)}
 .btn:active:not(:disabled){transform:scale(.97)}
-.btn:disabled{opacity:.5;cursor:not-allowed}
-.btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
-.btn-primary:hover:not(:disabled){background:var(--accent-hi);box-shadow:0 2px 12px var(--accent-glow)}
-.btn-ghost{background:transparent;color:var(--tx-2);border-color:var(--bd-1)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn-primary{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:700}
+.btn-primary:hover:not(:disabled){background:#6f9ef3;box-shadow:0 2px 20px rgba(91,141,239,.3)}
+.btn-ghost{background:transparent;color:var(--tx-1);border-color:var(--bd-1)}
 .btn-ghost:hover:not(:disabled){background:var(--bg-3);color:var(--tx-0);border-color:var(--bd-2)}
-.btn-danger{background:var(--err-bg);color:var(--err);border-color:rgba(239,107,107,.1)}
-.btn-danger:hover:not(:disabled){background:rgba(239,107,107,.1)}
-.btn-ok{background:var(--ok-bg);color:var(--ok);border-color:rgba(61,214,140,.1)}
-.btn-ok:hover:not(:disabled){background:rgba(61,214,140,.1)}
-.btn-sm{padding:4px 10px;font-size:10.5px;border-radius:6px}
-.btn-xs{padding:3px 8px;font-size:10px;border-radius:5px}
+.btn-danger{background:var(--err-bg);color:var(--err);border-color:rgba(248,113,113,.12)}
+.btn-danger:hover:not(:disabled){background:rgba(248,113,113,.12)}
+.btn-ok{background:var(--ok-bg);color:var(--ok);border-color:rgba(52,211,153,.12)}
+.btn-ok:hover:not(:disabled){background:rgba(52,211,153,.12)}
+.btn-sm{padding:5px 12px;font-size:11px;border-radius:8px}
+.btn-xs{padding:4px 9px;font-size:10px;border-radius:6px}
 .btn-spinner{display:none;width:12px;height:12px;border:1.5px solid transparent;border-top-color:currentColor;border-radius:50%;animation:spin .5s linear infinite}
-.spinner{width:14px;height:14px;border:2px solid transparent;border-top-color:currentColor;border-radius:50%;animation:spin .6s linear infinite}
+.spinner{width:16px;height:16px;border:2px solid transparent;border-top-color:currentColor;border-radius:50%;animation:spin .6s linear infinite}
 .spinner-sm{width:10px;height:10px;border-width:1.5px}
 .btn.is-loading .btn-spinner{display:block}
 .btn.is-loading .btn-label{opacity:.6}
 .btn.is-loading:disabled{opacity:1}
 
-.inp{
-  background:var(--bg-2);border:1px solid var(--bd-1);border-radius:var(--r);
-  color:var(--tx-0);padding:7px 12px;font-size:12px;font-family:var(--f-mono);
-  outline:none;transition:all var(--dur) var(--ease);
-}
+.inp{background:var(--bg-2);border:1px solid var(--bd-1);border-radius:var(--radius);color:var(--tx-0);padding:8px 14px;font-size:12px;font-family:var(--font-mono);outline:none;transition:all var(--dur) var(--ease)}
 .inp::placeholder{color:var(--tx-3)}
 .inp:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-bg)}
 .inp-key{width:220px}
 
-/* Layout */
-.body{display:flex;flex:1;min-height:0;overflow:hidden}
+/* ── Dashboard View ── */
+.dashboard{flex:1;overflow-y:auto;padding:24px}
+.dashboard::-webkit-scrollbar{width:4px}
+.dashboard::-webkit-scrollbar-thumb{background:var(--bd-2);border-radius:4px}
 
-/* Sidebar */
-.sidebar{
-  width:300px;min-width:280px;border-right:1px solid var(--bd-0);
-  display:flex;flex-direction:column;background:transparent;
-}
-.sidebar-header{
-  display:flex;align-items:center;justify-content:space-between;
-  padding:12px 16px;border-bottom:1px solid var(--bd-0);min-height:44px;
-}
-.sidebar-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--tx-3)}
-.sidebar-body{flex:1;min-height:0;overflow-y:auto;padding:12px}
-.sidebar-body::-webkit-scrollbar{width:3px}
-.sidebar-body::-webkit-scrollbar-track{background:transparent}
-.sidebar-body::-webkit-scrollbar-thumb{background:var(--bd-2);border-radius:3px}
-.sidebar-section{margin-bottom:16px}
-.sidebar-section-title{
-  font-size:9px;font-weight:700;text-transform:uppercase;
-  letter-spacing:.12em;color:var(--tx-3);margin-bottom:8px;
-  display:flex;align-items:center;gap:8px;padding:0 4px;
-}
-.sidebar-section-title::after{content:'';flex:1;height:1px;background:var(--bd-0)}
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:28px}
+.stat-card{background:var(--bg-1);border:1px solid var(--bd-0);border-radius:var(--radius-lg);padding:18px 22px;transition:all var(--dur) var(--ease)}
+.stat-card:hover{border-color:var(--bd-1);transform:translateY(-1px)}
+.stat-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--tx-3);margin-bottom:8px}
+.stat-value{font-family:var(--font-display);font-size:32px;font-weight:800;line-height:1}
+.stat-value.accent{color:var(--accent)}
+.stat-value.ok{color:var(--ok)}
+.stat-value.err{color:var(--err)}
+.stat-value.warn{color:var(--warn)}
 
-/* Context Card */
-.ctx-card{
-  background:var(--bg-1);border:1px solid var(--bd-0);border-radius:var(--r);
-  padding:10px 12px;margin-bottom:3px;transition:all var(--dur) var(--ease);cursor:default;
-}
-.ctx-card:hover{border-color:var(--bd-1);background:var(--bg-2);transform:translateX(1px)}
-.ctx-card-head{display:flex;align-items:center;gap:7px;margin-bottom:5px}
-.ctx-card-name{font-size:12px;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ctx-card-meta{display:flex;gap:12px;padding-left:14px;margin-bottom:5px}
-.ctx-card-meta span{font-size:9.5px;color:var(--tx-3);font-family:var(--f-mono)}
-.ctx-card-actions{display:flex;gap:4px;padding-left:14px;flex-wrap:wrap}
+.dashboard-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.dashboard-title{font-family:var(--font-display);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--tx-3)}
+.dashboard-actions{display:flex;gap:8px}
 
-.status-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
-.status-dot-pending{background:var(--warn);box-shadow:0 0 5px rgba(229,168,75,.3)}
-.status-dot-logged_in{background:var(--ok);box-shadow:0 0 5px rgba(61,214,140,.2)}
-.status-dot-in_use{background:var(--accent);box-shadow:0 0 6px rgba(91,141,239,.3);animation:dotPulse 2s ease-in-out infinite}
+/* ── Context Chips ── */
+.context-chips{display:flex;gap:6px;margin-bottom:24px;flex-wrap:wrap}
+.ctx-chip{display:flex;align-items:center;gap:6px;padding:6px 14px;background:var(--bg-1);border:1px solid var(--bd-0);border-radius:20px;font-size:11px;font-weight:500;cursor:default;transition:all var(--dur) var(--ease)}
+.ctx-chip:hover{border-color:var(--bd-1)}
+.ctx-chip .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.ctx-chip .dot.logged_in{background:var(--ok);box-shadow:0 0 6px rgba(52,211,153,.3)}
+.ctx-chip .dot.in_use{background:var(--accent);box-shadow:0 0 6px rgba(91,141,239,.3);animation:dotPulse 2s ease-in-out infinite}
+.ctx-chip .dot.pending{background:var(--warn);box-shadow:0 0 6px rgba(251,191,36,.3)}
+.ctx-chip-actions{display:flex;gap:4px;margin-left:4px}
 
-/* Task Card */
-.task-card{
-  background:var(--bg-1);border:1px solid var(--bd-0);border-radius:var(--r);
-  padding:10px 12px;margin-bottom:3px;cursor:pointer;transition:all var(--dur) var(--ease);
-  position:relative;
-}
-.task-card::before{
-  content:'';position:absolute;left:0;top:10px;bottom:10px;width:2px;
-  border-radius:0 2px 2px 0;background:transparent;transition:background .15s;
-}
-.task-card:hover{border-color:var(--bd-1);background:var(--bg-2)}
-.task-card:hover::before{background:var(--tx-3)}
-.task-card.active{border-color:var(--accent-bd);background:var(--bg-2);box-shadow:inset 0 0 0 1px var(--accent-bg)}
-.task-card.active::before{background:var(--accent)}
-.task-card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
-.task-card-name{font-size:12px;font-weight:600}
-.task-card-footer{display:flex;justify-content:space-between;font-size:9px;color:var(--tx-3);font-family:var(--f-mono)}
+/* ── Task Grid ── */
+.task-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+.task-grid-card{background:var(--bg-1);border:1px solid var(--bd-0);border-radius:var(--radius-lg);padding:18px 20px;cursor:pointer;transition:all var(--dur) var(--ease);position:relative;overflow:hidden}
 
-.tag{display:inline-flex;align-items:center;padding:2px 7px;border-radius:10px;font-size:9px;font-weight:600;font-family:var(--f-mono)}
-.tag-running{background:var(--accent-bg);color:var(--accent);border:1px solid rgba(91,141,239,.1)}
-.tag-completed{background:var(--ok-bg);color:var(--ok);border:1px solid rgba(61,214,140,.1)}
-.tag-failed{background:var(--err-bg);color:var(--err);border:1px solid rgba(239,107,107,.1)}
-.tag-cancelled{background:rgba(255,255,255,.02);color:var(--tx-3);border:1px solid var(--bd-0)}
-.tag-pending{background:var(--warn-bg);color:var(--warn);border:1px solid rgba(229,168,75,.1)}
-.tag-waiting_human_input{background:rgba(139,92,246,.06);color:#a78bfa;border:1px solid rgba(139,92,246,.1)}
-.progress-bar{height:2px;background:var(--bg-3);border-radius:1px;overflow:hidden;margin-bottom:4px}
-.progress-fill{height:100%;border-radius:1px;background:linear-gradient(90deg,var(--accent-lo),var(--accent));transition:width .5s var(--ease)}
+/* Running task monitor cards */
+.running-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(460px,1fr));gap:16px}
+.running-card{background:var(--bg-1);border:1px solid var(--accent-bd);border-radius:var(--radius-lg);padding:20px;position:relative;overflow:hidden;box-shadow:0 0 24px rgba(91,141,239,.06)}
+.running-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--accent-dim),var(--accent),var(--accent-dim));background-size:200% 100%;animation:progressStripe 2s linear infinite}
+.rc-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.rc-name{font-family:var(--font-display);font-size:14px;font-weight:700}
+.rc-progress{height:6px;background:var(--bg-3);border-radius:4px;overflow:hidden;margin-bottom:12px}
+.rc-progress-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--accent-dim),var(--accent));transition:width .5s var(--ease)}
+.rc-progress-text{font-size:10px;color:var(--tx-2);font-family:var(--font-mono);margin-bottom:12px;display:flex;justify-content:space-between}
+.rc-logs{background:var(--bg-0);border:1px solid var(--bd-0);border-radius:8px;padding:10px 12px;max-height:120px;overflow-y:auto;font-family:var(--font-mono);font-size:10px;line-height:1.8;color:var(--tx-1)}
+.rc-logs::-webkit-scrollbar{width:2px}
+.rc-logs::-webkit-scrollbar-thumb{background:var(--bd-2);border-radius:2px}
+.rc-log-item{display:flex;gap:8px;align-items:baseline}
+.rc-log-num{color:var(--accent);min-width:18px}
+.rc-log-name{flex:1}
+.rc-log-status{color:var(--tx-3)}
+.rc-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
+.task-grid-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:transparent;transition:background .15s}
+.task-grid-card:hover{border-color:var(--bd-1);transform:translateY(-2px);box-shadow:var(--shadow)}
+.task-grid-card:hover::before{background:var(--accent)}
+.task-grid-card.status-running::before{background:var(--accent);animation:progressStripe 1s linear infinite;background-image:linear-gradient(135deg,var(--accent) 25%,var(--accent-dim) 25%,var(--accent-dim) 50%,var(--accent) 50%,var(--accent) 75%,var(--accent-dim) 75%);background-size:40px 40px}
+.task-grid-card.status-completed::before{background:var(--ok)}
+.task-grid-card.status-failed::before{background:var(--err)}
+.task-grid-card.status-cancelled::before{background:var(--tx-3)}
+.task-grid-card.status-waiting_human_input::before{background:#a78bfa}
+.tg-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.tg-name{font-size:13px;font-weight:700}
+.tg-meta{display:flex;gap:8px;margin-bottom:12px;font-size:10px;color:var(--tx-3);font-family:var(--font-mono);flex-wrap:wrap}
+.tg-meta span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tg-progress{height:4px;background:var(--bg-3);border-radius:3px;overflow:hidden;margin-bottom:8px}
+.tg-progress-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--accent-dim),var(--accent));transition:width .5s var(--ease)}
+.tg-footer{display:flex;justify-content:space-between;align-items:center;font-size:9.5px;color:var(--tx-3);font-family:var(--font-mono)}
 
-/* Monitor (Main Area) */
+/* ── Monitor View ── */
 .monitor{flex:1;min-width:0;display:flex;overflow:hidden}
-.monitor-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;flex:1;gap:12px}
-.monitor-empty-icon{width:48px;height:48px;border-radius:var(--r2);background:var(--bg-2);border:1px solid var(--bd-1);display:grid;place-items:center;color:var(--tx-3);font-size:18px}
+.monitor-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;flex:1;gap:14px}
+.monitor-empty-icon{width:56px;height:56px;border-radius:var(--radius-lg);background:var(--bg-2);border:1px solid var(--bd-1);display:grid;place-items:center;color:var(--tx-3);font-size:22px}
 .monitor-empty span{font-size:12px;color:var(--tx-3)}
 
-/* Monitor center: bar + browser */
 .monitor-center{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
-.monitor-bar{
-  display:flex;align-items:center;justify-content:space-between;
-  padding:10px 18px;border-bottom:1px solid var(--bd-0);
-  background:rgba(12,14,19,.6);backdrop-filter:blur(8px);min-height:44px;
-}
-.monitor-bar-left{display:flex;align-items:center;gap:12px}
-.monitor-bar-name{font-size:13px;font-weight:700}
+.monitor-bar{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;border-bottom:1px solid var(--bd-0);background:rgba(9,12,20,.7);backdrop-filter:blur(12px);min-height:48px}
+.monitor-bar-left{display:flex;align-items:center;gap:14px}
+.monitor-bar-name{font-family:var(--font-display);font-size:14px;font-weight:700;letter-spacing:-.01em}
 .monitor-bar-right{display:flex;align-items:center;gap:8px}
-.monitor-bar-progress{display:flex;align-items:center;gap:8px}
-.monitor-bar-progress-bar{width:120px;height:3px;border-radius:1px;background:var(--bg-3);overflow:hidden}
-.monitor-bar-progress-fill{height:100%;border-radius:1px;background:linear-gradient(90deg,var(--accent-lo),var(--accent));transition:width .5s var(--ease)}
-.monitor-bar-progress-text{font-size:9.5px;color:var(--tx-3);font-family:var(--f-mono)}
+.monitor-bar-progress{display:flex;align-items:center;gap:10px}
+.monitor-bar-progress-bar{width:130px;height:3px;border-radius:2px;background:var(--bg-3);overflow:hidden}
+.monitor-bar-progress-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--accent-dim),var(--accent));transition:width .5s var(--ease)}
+.monitor-bar-progress-text{font-size:10px;color:var(--tx-2);font-family:var(--font-mono);font-weight:500}
 
-/* Browser view — fills remaining height */
-.monitor-browser{flex:1;position:relative;background:var(--bg-base);overflow:hidden}
-.browser-iframe{position:absolute;inset:0;width:100%;height:100%;border:none;background:var(--bg-base)}
-.browser-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--tx-3);font-size:11px;font-family:var(--f-mono)}
+.monitor-browser{flex:1;position:relative;background:var(--bg-deep);overflow:hidden}
+.browser-iframe{position:absolute;inset:0;width:100%;height:100%;border:none;background:var(--bg-deep)}
+.browser-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--tx-3);font-size:11px;font-family:var(--font-mono)}
 
-/* Result output view (replaces browser when task done) */
-.result-output{position:absolute;inset:0;overflow-y:auto;padding:16px 20px;font-family:var(--f-mono);font-size:11px;line-height:1.7;color:var(--tx-1);background:var(--bg-base)}
+.result-output{position:absolute;inset:0;overflow-y:auto;padding:20px 24px;font-family:var(--font-mono);font-size:11px;line-height:1.7;color:var(--tx-1);background:var(--bg-deep)}
 .result-output::-webkit-scrollbar{width:4px}
 .result-output::-webkit-scrollbar-thumb{background:var(--bd-2);border-radius:4px}
 .result-output pre{white-space:pre-wrap;word-break:break-all;margin:0}
-.result-output-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;position:sticky;top:0;padding-bottom:10px;background:var(--bg-base);z-index:1;border-bottom:1px solid var(--bd-0)}
-.result-output-title{font-size:12px;font-weight:700;color:var(--tx-0);font-family:var(--f-body)}
+.result-output-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;position:sticky;top:0;padding-bottom:12px;background:var(--bg-deep);z-index:1;border-bottom:1px solid var(--bd-0)}
+.result-output-title{font-size:13px;font-weight:700;color:var(--tx-0);font-family:var(--font-display)}
 .result-output-meta{display:flex;gap:8px;align-items:center}
 .result-table{width:100%;border-collapse:collapse;font-size:10.5px}
-.result-table th{text-align:left;padding:6px 10px;background:var(--bg-2);color:var(--tx-2);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--bd-1);position:sticky;top:0}
-.result-table td{padding:5px 10px;border-bottom:1px solid var(--bd-0);color:var(--tx-1);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.result-table th{text-align:left;padding:7px 12px;background:var(--bg-2);color:var(--tx-2);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--bd-1);position:sticky;top:0}
+.result-table td{padding:6px 12px;border-bottom:1px solid var(--bd-0);color:var(--tx-1);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .result-table tr:hover td{background:var(--bg-2)}
 .result-table a{color:var(--accent);text-decoration:none}
 
-/* Right panel: logs on top, results below */
-.monitor-right{
-  width:340px;min-width:300px;border-left:1px solid var(--bd-0);
-  display:flex;flex-direction:column;overflow:hidden;
-}
+.monitor-right{width:360px;min-width:320px;border-left:1px solid var(--bd-0);display:flex;flex-direction:column;overflow:hidden}
 
-/* Logs section */
-.logs-section{flex:1;min-height:120px;display:flex;flex-direction:column;overflow:hidden;border-bottom:1px solid var(--bd-0)}
-.section-header{
-  display:flex;align-items:center;justify-content:space-between;
-  padding:8px 14px;border-bottom:1px solid var(--bd-0);
-  font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--tx-3);
-}
+.logs-section{flex:1;min-height:130px;display:flex;flex-direction:column;overflow:hidden;border-bottom:1px solid var(--bd-0)}
+.section-header{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--bd-0);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--tx-3)}
 .logs-body{flex:1;overflow-y:auto;padding:6px 0}
 .logs-body::-webkit-scrollbar{width:2px}
 .logs-body::-webkit-scrollbar-thumb{background:var(--bd-2);border-radius:2px}
-.log-item{display:flex;align-items:center;gap:7px;padding:5px 12px;font-size:10.5px}
+.log-item{display:flex;align-items:center;gap:8px;padding:6px 14px;font-size:10.5px}
 .log-item+.log-item{border-top:1px solid var(--bd-0)}
-.log-num{width:20px;height:20px;border-radius:5px;display:grid;place-items:center;font-size:8px;font-weight:600;font-family:var(--f-mono);flex-shrink:0}
+.log-num{width:22px;height:22px;border-radius:6px;display:grid;place-items:center;font-size:8px;font-weight:600;font-family:var(--font-mono);flex-shrink:0}
 .log-num-completed{background:var(--ok-bg);color:var(--ok)}
 .log-num-running{background:var(--accent-bg);color:var(--accent)}
 .log-num-pending{background:var(--warn-bg);color:var(--warn)}
 .log-num-failed{background:var(--err-bg);color:var(--err)}
 .log-label{flex:1;font-weight:500;color:var(--tx-1);font-size:10.5px}
-.log-time{color:var(--tx-3);font-size:8.5px;font-family:var(--f-mono)}
+.log-time{color:var(--tx-3);font-size:8.5px;font-family:var(--font-mono)}
 
-/* Results section */
-.results-section{flex:1;min-height:120px;display:flex;flex-direction:column;overflow:hidden}
-.results-count{font-size:9px;color:var(--tx-3);font-family:var(--f-mono)}
-.results-grid{
-  flex:1;overflow-y:auto;padding:8px;
-  display:grid;grid-template-columns:1fr;gap:4px;align-content:start;
-}
+.results-section{flex:1;min-height:130px;display:flex;flex-direction:column;overflow:hidden}
+.results-count{font-size:9px;color:var(--tx-3);font-family:var(--font-mono)}
+.results-grid{flex:1;overflow-y:auto;padding:10px;display:grid;grid-template-columns:1fr;gap:5px;align-content:start}
 .results-grid::-webkit-scrollbar{width:3px}
 .results-grid::-webkit-scrollbar-thumb{background:var(--bd-2);border-radius:3px}
-.result-card{
-  background:var(--bg-1);border:1px solid var(--bd-0);border-radius:var(--r);
-  padding:8px 10px;transition:all var(--dur) var(--ease);display:flex;flex-direction:column;gap:3px;
-}
+.result-card{background:var(--bg-1);border:1px solid var(--bd-0);border-radius:var(--radius);padding:10px 12px;transition:all var(--dur) var(--ease);display:flex;flex-direction:column;gap:3px}
 .result-card:hover{border-color:var(--bd-1);background:var(--bg-2)}
 .result-card-title{font-size:11px;font-weight:500;color:var(--tx-1);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.result-card-meta{display:flex;gap:6px;font-size:9px;color:var(--tx-3);font-family:var(--f-mono);align-items:center;flex-wrap:wrap}
+.result-card-meta{display:flex;gap:6px;font-size:9px;color:var(--tx-3);font-family:var(--font-mono);align-items:center;flex-wrap:wrap}
 .result-card-meta a{color:var(--accent);text-decoration:none}
-.result-card-price{font-size:11px;font-weight:600;color:var(--ok);font-family:var(--f-mono)}
-.result-empty{text-align:center;padding:24px;color:var(--tx-3);font-size:10.5px;font-family:var(--f-mono)}
-.result-link{
-  display:inline-flex;padding:3px 8px;border-radius:5px;
-  background:var(--accent-bg);color:var(--accent);font-size:9.5px;font-weight:600;
-  font-family:var(--f-mono);text-decoration:none;border:1px solid var(--accent-bd);transition:all var(--dur) var(--ease);
-}
-.result-link:hover{background:rgba(91,141,239,.1)}
+.result-card-price{font-size:12px;font-weight:700;color:var(--ok);font-family:var(--font-mono)}
+.result-empty{text-align:center;padding:28px;color:var(--tx-3);font-size:10.5px;font-family:var(--font-mono)}
+.result-link{display:inline-flex;padding:3px 9px;border-radius:6px;background:var(--accent-bg);color:var(--accent);font-size:9.5px;font-weight:600;font-family:var(--font-mono);text-decoration:none;border:1px solid var(--accent-bd);transition:all var(--dur) var(--ease)}
+.result-link:hover{background:rgba(91,141,239,.12)}
 
-/* Skeleton */
-.skeleton{background:linear-gradient(90deg,var(--bg-2) 25%,var(--bg-3) 50%,var(--bg-2) 75%);background-size:200% 100%;animation:skeletonPulse 1.8s ease infinite;border-radius:6px}
-.skeleton-card{height:60px;margin-bottom:4px;border-radius:var(--r)}
+.skeleton{background:linear-gradient(90deg,var(--bg-2) 25%,var(--bg-3) 50%,var(--bg-2) 75%);background-size:200% 100%;animation:skeletonPulse 1.8s ease infinite;border-radius:var(--radius)}
+.skeleton-card{height:64px;margin-bottom:5px}
 
-/* Toast */
-.toast-container{position:fixed;top:14px;right:14px;z-index:500;display:flex;flex-direction:column;gap:6px;pointer-events:none}
-.toast{
-  display:flex;align-items:center;gap:8px;padding:9px 14px;border-radius:var(--r);
-  background:var(--bg-2);border:1px solid var(--bd-1);box-shadow:var(--shadow);
-  font-size:11.5px;font-weight:500;animation:toastIn .25s var(--ease-out);
-  pointer-events:auto;min-width:180px;max-width:360px;backdrop-filter:blur(12px);
-}
+/* ── Toast ── */
+.toast-container{position:fixed;top:16px;right:16px;z-index:500;display:flex;flex-direction:column;gap:6px;pointer-events:none}
+.toast{display:flex;align-items:center;gap:10px;padding:10px 16px;border-radius:var(--radius);background:var(--bg-2);border:1px solid var(--bd-1);box-shadow:var(--shadow);font-size:12px;font-weight:500;animation:toastIn .25s var(--ease);pointer-events:auto;min-width:190px;max-width:380px;backdrop-filter:blur(16px)}
 .toast.removing{animation:toastOut .2s ease forwards}
-.toast-icon{flex-shrink:0;font-size:13px;width:16px;text-align:center}
+.toast-icon{flex-shrink:0;font-size:14px;width:16px;text-align:center}
 .toast-msg{flex:1;color:var(--tx-0);line-height:1.4}
-.toast-close{background:none;border:none;color:var(--tx-3);cursor:pointer;font-size:13px;padding:0 0 0 4px}
+.toast-close{background:none;border:none;color:var(--tx-3);cursor:pointer;font-size:14px;padding:0 0 0 4px}
 .toast-close:hover{color:var(--tx-0)}
-.toast-ok{border-color:rgba(61,214,140,.12);background:linear-gradient(135deg,var(--bg-2),rgba(61,214,140,.04))}
+.toast-ok{border-color:rgba(52,211,153,.12);background:linear-gradient(135deg,var(--bg-2),rgba(52,211,153,.03))}
 .toast-ok .toast-icon{color:var(--ok)}
-.toast-err{border-color:rgba(239,107,107,.12);background:linear-gradient(135deg,var(--bg-2),rgba(239,107,107,.04))}
+.toast-err{border-color:rgba(248,113,113,.12);background:linear-gradient(135deg,var(--bg-2),rgba(248,113,113,.03))}
 .toast-err .toast-icon{color:var(--err)}
-.toast-warn{border-color:rgba(229,168,75,.12);background:linear-gradient(135deg,var(--bg-2),rgba(229,168,75,.04))}
+.toast-warn{border-color:rgba(251,191,36,.12);background:linear-gradient(135deg,var(--bg-2),rgba(251,191,36,.03))}
 .toast-warn .toast-icon{color:var(--warn)}
-.toast-info{border-color:rgba(107,163,239,.12);background:linear-gradient(135deg,var(--bg-2),rgba(107,163,239,.04))}
+.toast-info{border-color:rgba(96,165,250,.12);background:linear-gradient(135deg,var(--bg-2),rgba(96,165,250,.03))}
 .toast-info .toast-icon{color:var(--info)}
 
-/* Confirm Dialog */
-.confirm-overlay{display:none;position:fixed;inset:0;z-index:300;background:rgba(4,5,8,.7);backdrop-filter:blur(16px);align-items:center;justify-content:center}
+/* ── Confirm Dialog ── */
+.confirm-overlay{display:none;position:fixed;inset:0;z-index:300;background:rgba(3,4,10,.75);backdrop-filter:blur(20px);align-items:center;justify-content:center}
 .confirm-overlay.open{display:flex}
-.confirm-dialog{background:var(--bg-1);border:1px solid var(--bd-1);border-radius:var(--r2);width:340px;max-width:90vw;padding:22px;box-shadow:var(--shadow-lg);animation:scaleIn .2s var(--ease-out)}
-.confirm-title{font-size:14px;font-weight:700;margin-bottom:6px}
-.confirm-msg{font-size:12px;color:var(--tx-1);margin-bottom:18px;line-height:1.5}
-.confirm-actions{display:flex;justify-content:flex-end;gap:6px}
+.confirm-dialog{background:var(--bg-1);border:1px solid var(--bd-1);border-radius:var(--radius-xl);width:360px;max-width:90vw;padding:24px;box-shadow:var(--shadow-lg);animation:scaleIn .2s var(--ease)}
+.confirm-title{font-family:var(--font-display);font-size:15px;font-weight:700;margin-bottom:8px}
+.confirm-msg{font-size:12.5px;color:var(--tx-1);margin-bottom:20px;line-height:1.5}
+.confirm-actions{display:flex;justify-content:flex-end;gap:8px}
 
-/* Modal */
-.overlay{display:none;position:fixed;inset:0;z-index:200;background:rgba(4,5,8,.75);backdrop-filter:blur(24px) saturate(.9);align-items:center;justify-content:center}
+/* ── Modal ── */
+.overlay{display:none;position:fixed;inset:0;z-index:200;background:rgba(3,4,10,.8);backdrop-filter:blur(28px) saturate(.85);align-items:center;justify-content:center}
 .overlay.open{display:flex}
-.modal{background:var(--bg-1);border:1px solid var(--bd-1);border-radius:var(--r3);width:420px;max-width:92vw;box-shadow:var(--shadow-lg);animation:scaleIn .2s var(--ease-out)}
-.modal-head{padding:16px 20px;border-bottom:1px solid var(--bd-0);display:flex;justify-content:space-between;align-items:center}
-.modal-head h3{font-size:14px;font-weight:700}
-.modal-close{width:26px;height:26px;border-radius:6px;display:grid;place-items:center;cursor:pointer;color:var(--tx-3);font-size:15px;transition:all var(--dur) var(--ease);background:none;border:none}
+.modal{background:var(--bg-1);border:1px solid var(--bd-1);border-radius:var(--radius-xl);width:440px;max-width:92vw;max-height:86vh;box-shadow:var(--shadow-lg);animation:scaleIn .2s var(--ease);display:flex;flex-direction:column;overflow:hidden}
+.modal-head{padding:18px 24px;border-bottom:1px solid var(--bd-0);display:flex;justify-content:space-between;align-items:center}
+.modal-head h3{font-family:var(--font-display);font-size:15px;font-weight:700}
+.modal-close{width:28px;height:28px;border-radius:7px;display:grid;place-items:center;cursor:pointer;color:var(--tx-3);font-size:16px;transition:all var(--dur) var(--ease);background:none;border:none}
 .modal-close:hover{background:var(--bg-3);color:var(--tx-0)}
-.modal-body{padding:20px}
-.modal-footer{padding:12px 20px;border-top:1px solid var(--bd-0);display:flex;justify-content:flex-end;gap:6px}
+.modal-body{padding:18px 24px;overflow-y:auto}
+.modal-body::-webkit-scrollbar{width:4px}
+.modal-body::-webkit-scrollbar-thumb{background:var(--bd-2);border-radius:4px}
+.modal-footer{padding:14px 24px;border-top:1px solid var(--bd-0);display:flex;justify-content:flex-end;gap:8px}
 
-.field{margin-bottom:16px}
+.field{margin-bottom:12px}
 .field:last-child{margin-bottom:0}
-.field-label{display:block;font-size:9.5px;font-weight:700;color:var(--tx-3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.08em}
-.field-input,.field-select,.field-textarea{width:100%;background:var(--bg-2);border:1px solid var(--bd-1);border-radius:var(--r);padding:8px 12px;color:var(--tx-0);font:12.5px var(--f-body);outline:none;transition:all var(--dur) var(--ease)}
+.field-label{display:block;font-size:9.5px;font-weight:700;color:var(--tx-3);margin-bottom:7px;text-transform:uppercase;letter-spacing:.09em}
+.field-input,.field-select,.field-textarea{width:100%;background:var(--bg-2);border:1px solid var(--bd-1);border-radius:var(--radius);padding:9px 14px;color:var(--tx-0);font:13px var(--font-body);outline:none;transition:all var(--dur) var(--ease)}
 .field-input:focus,.field-select:focus,.field-textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-bg)}
-.field-textarea{min-height:68px;resize:vertical;font-family:var(--f-mono);font-size:11px;line-height:1.7}
-.field-select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' fill='%235a6379' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
-.field-hint{font-size:9px;color:var(--tx-3);margin-top:4px;font-family:var(--f-mono)}
+.field-textarea{min-height:58px;resize:vertical;font-family:var(--font-mono);font-size:11px;line-height:1.6}
+.field-select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' fill='%23545e7a' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center}
+.field-hint{font-size:9px;color:var(--tx-3);margin-top:5px;font-family:var(--font-mono)}
+.task-draft-list{display:flex;flex-direction:column;gap:6px;max-height:150px;overflow-y:auto}
+.task-draft-list::-webkit-scrollbar{width:3px}
+.task-draft-list::-webkit-scrollbar-thumb{background:var(--bd-2);border-radius:3px}
+.task-draft-card{display:flex;align-items:center;gap:10px;padding:9px 11px;background:var(--bg-0);border:1px solid var(--bd-0);border-radius:var(--radius)}
+.task-draft-main{flex:1;min-width:0}
+.task-draft-title{font-size:11px;font-weight:700;color:var(--tx-0);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.task-draft-meta{font:9.5px var(--font-mono);color:var(--tx-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.task-draft-remove{border:0;background:transparent;color:var(--tx-3);cursor:pointer;font-size:14px;padding:2px 4px}
+.task-draft-remove:hover{color:var(--err)}
 
-.modal-browser{width:860px;max-width:96vw}
+.modal-browser{width:900px;max-width:96vw}
 .modal-browser .modal-body{padding:0;position:relative}
-.browser-iframe-modal{width:100%;height:480px;border:none;display:block;background:var(--bg-base)}
+.browser-iframe-modal{width:100%;height:500px;border:none;display:block;background:var(--bg-deep)}
 .browser-loading{position:absolute;inset:0;display:grid;place-items:center;background:var(--bg-1);z-index:2}
-.browser-loading-inner{display:flex;flex-direction:column;align-items:center;gap:10px}
-.browser-loading-inner .spinner{width:22px;height:22px;border:2.5px solid var(--bd-2);border-top-color:var(--accent)}
-.browser-loading-inner span{font-size:11px;color:var(--tx-3);font-family:var(--f-mono)}
-.browser-bar{display:flex;align-items:center;gap:8px;padding:8px 16px;border-top:1px solid var(--bd-0);background:var(--bg-0)}
-.browser-bar span{font:9.5px var(--f-mono);color:var(--tx-3);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.browser-loading-inner{display:flex;flex-direction:column;align-items:center;gap:12px}
+.browser-loading-inner .spinner{width:24px;height:24px;border:2.5px solid var(--bd-2);border-top-color:var(--accent)}
+.browser-loading-inner span{font-size:11px;color:var(--tx-3);font-family:var(--font-mono)}
+.browser-bar{display:flex;align-items:center;gap:10px;padding:10px 18px;border-top:1px solid var(--bd-0);background:var(--bg-0)}
+.browser-bar span{font:9.5px var(--font-mono);color:var(--tx-3);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
-.cookies-table{width:100%;border-collapse:collapse;font-size:10.5px;font-family:var(--f-mono)}
-.cookies-table th{text-align:left;padding:6px 8px;background:var(--bg-3);color:var(--tx-2);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid var(--bd-1);position:sticky;top:0}
-.cookies-table td{padding:5px 8px;border-bottom:1px solid var(--bd-0);color:var(--tx-1);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cookies-table{width:100%;border-collapse:collapse;font-size:10.5px;font-family:var(--font-mono)}
+.cookies-table th{text-align:left;padding:7px 10px;background:var(--bg-3);color:var(--tx-2);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid var(--bd-1);position:sticky;top:0}
+.cookies-table td{padding:6px 10px;border-bottom:1px solid var(--bd-0);color:var(--tx-1);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cookies-table tr:hover td{background:var(--bg-2)}
-.cookies-scroll{max-height:340px;overflow-y:auto;border:1px solid var(--bd-0);border-radius:var(--r)}
+.cookies-scroll{max-height:360px;overflow-y:auto;border:1px solid var(--bd-0);border-radius:var(--radius)}
 .cookies-scroll::-webkit-scrollbar{width:3px}
 .cookies-scroll::-webkit-scrollbar-thumb{background:var(--bd-2);border-radius:3px}
 
-.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:30px 18px;text-align:center}
-.empty-icon{width:36px;height:36px;border-radius:var(--r2);border:1px dashed var(--bd-1);display:grid;place-items:center;color:var(--tx-3);font-size:14px;margin-bottom:8px}
-.empty span{font-size:10.5px;color:var(--tx-3);line-height:1.6}
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 20px;text-align:center}
+.empty-icon{width:40px;height:40px;border-radius:var(--radius-lg);border:1px dashed var(--bd-1);display:grid;place-items:center;color:var(--tx-3);font-size:16px;margin-bottom:10px}
+.empty span{font-size:11px;color:var(--tx-3);line-height:1.6}
+
+.tag{display:inline-flex;align-items:center;padding:2px 8px;border-radius:10px;font-size:9px;font-weight:600;font-family:var(--font-mono);letter-spacing:.02em}
+.tag-running{background:var(--accent-bg);color:var(--accent);border:1px solid rgba(91,141,239,.12)}
+.tag-completed{background:var(--ok-bg);color:var(--ok);border:1px solid rgba(52,211,153,.12)}
+.tag-failed{background:var(--err-bg);color:var(--err);border:1px solid rgba(248,113,113,.12)}
+.tag-cancelled{background:rgba(255,255,255,.02);color:var(--tx-3);border:1px solid var(--bd-0)}
+.tag-pending{background:var(--warn-bg);color:var(--warn);border:1px solid rgba(251,191,36,.12)}
+.tag-waiting_human_input{background:rgba(160,120,255,.06);color:#b08aff;border:1px solid rgba(160,120,255,.12)}
+
+.status-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.status-dot-pending{background:var(--warn);box-shadow:0 0 8px rgba(251,191,36,.3)}
+.status-dot-logged_in{background:var(--ok);box-shadow:0 0 8px rgba(52,211,153,.25)}
+.status-dot-in_use{background:var(--accent);box-shadow:0 0 10px rgba(91,141,239,.35);animation:dotPulse 2s ease-in-out infinite}
 </style>
 </head>
 <body>
@@ -347,34 +330,75 @@ body{font-family:var(--f-body);background:var(--bg-base);color:var(--tx-0);-webk
   <div class="header">
     <div class="logo"><div class="logo-mark">M</div><div class="logo-text"><b>Micro</b> Sniper</div></div>
     <div class="header-right">
+      <button class="btn btn-ghost btn-sm" onclick="showProducts()" style="margin-right:8px"><span class="btn-label">商品库</span></button>
       <input type="password" class="inp inp-key" id="apiKeyInput" placeholder="API Key..." />
       <button class="btn btn-primary btn-sm" id="connectBtn" onclick="saveApiKey()"><span class="btn-spinner"></span><span class="btn-label">连接</span></button>
     </div>
   </div>
-  <div class="body">
-    <div class="sidebar">
-      <div class="sidebar-header">
-        <span class="sidebar-title">控制台</span>
-        <div style="display:flex;gap:4px">
-          <button class="btn btn-ghost btn-xs" onclick="showAddContextModal()">+ 上下文</button>
-          <button class="btn btn-primary btn-xs" onclick="showCreateTaskModal()">+ 任务</button>
-        </div>
-      </div>
-      <div class="sidebar-body">
-        <div class="sidebar-section">
-          <div class="sidebar-section-title">浏览器上下文</div>
-          <div id="contextList"></div>
-        </div>
-        <div class="sidebar-section">
-          <div class="sidebar-section-title">任务列表</div>
-          <div id="taskList"></div>
-        </div>
+
+  <!-- Dashboard view (no task selected) -->
+  <div class="dashboard" id="dashboardView">
+    <div class="stats-row" id="statsRow">
+      <div class="stat-card"><div class="stat-label">运行中</div><div class="stat-value accent" id="statRunning">0</div></div>
+      <div class="stat-card"><div class="stat-label">已完成</div><div class="stat-value ok" id="statCompleted">0</div></div>
+      <div class="stat-card"><div class="stat-label">已失败</div><div class="stat-value err" id="statFailed">0</div></div>
+      <div class="stat-card"><div class="stat-label">上下文</div><div class="stat-value warn" id="statContexts">0</div></div>
+    </div>
+
+    <div class="dashboard-header">
+      <div class="dashboard-title">实时监控</div>
+    </div>
+    <div id="runningMonitor" style="margin-bottom:28px"></div>
+
+    <div class="dashboard-header">
+      <div class="dashboard-title">浏览器上下文</div>
+      <div class="dashboard-actions">
+        <button class="btn btn-ghost btn-xs" onclick="showAddContextModal()">+ 上下文</button>
+        <button class="btn btn-primary btn-xs" onclick="showCreateTaskModal()">+ 任务</button>
       </div>
     </div>
-    <div class="monitor" id="monitorRoot">
-      <div class="monitor-empty" style="flex:1">
-        <div class="monitor-empty-icon">&#9673;</div>
-        <span>选择一个任务查看执行监控</span>
+    <div class="context-chips" id="contextChips"></div>
+
+    <div class="dashboard-header">
+      <div class="dashboard-title">任务列表</div>
+    </div>
+    <div class="task-grid" id="taskGrid"></div>
+  </div>
+
+  <!-- Products view -->
+  <div class="dashboard" id="productsView" style="display:none">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+      <button class="btn btn-ghost btn-xs" onclick="backToDashboard()">&larr; 看板</button>
+      <span style="font-family:var(--font-display);font-size:15px;font-weight:700">商品库</span>
+      <span id="productsCount" style="font-family:var(--font-mono);font-size:11px;color:var(--tx-3)"></span>
+    </div>
+    <div style="display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap;align-items:center">
+      <select class="field-select" id="prodPlatform" onchange="loadProducts()" style="width:120px"><option value="">全部平台</option><option value="taobao">淘宝</option><option value="tmall">天猫</option><option value="jd">京东</option></select>
+      <input class="field-input" type="text" id="prodKeyword" placeholder="搜索关键词..." onkeydown="if(event.key==='Enter')loadProducts()" style="width:200px" />
+      <button class="btn btn-ghost btn-xs" onclick="loadProducts()"><span class="btn-label">搜索</span></button>
+    </div>
+    <div id="productsGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px"></div>
+    <div id="productsMore" style="display:none;text-align:center;padding:20px"><button class="btn btn-ghost btn-sm" onclick="loadMoreProducts()"><span class="btn-label">加载更多</span></button></div>
+    <div id="productsEmpty" style="display:none;text-align:center;padding:60px 0;color:var(--tx-3);font-size:13px">暂无商品数据</div>
+  </div>
+
+  <!-- Monitor view (task selected) -->
+  <div class="monitor" id="monitorRoot" style="display:none">
+    <div class="monitor-center">
+      <div class="monitor-bar">
+        <div class="monitor-bar-left"><button class="btn btn-ghost btn-xs" onclick="backToDashboard()">&larr; 看板</button><span class="monitor-bar-name"></span><span class="tag"></span><div class="monitor-bar-progress"><div class="monitor-bar-progress-bar"><div class="monitor-bar-progress-fill"></div></div><span class="monitor-bar-progress-text"></span></div></div>
+        <div class="monitor-bar-right"><button class="btn btn-danger btn-xs" id="cancelBtn" style="display:none" onclick="cancelTask()"><span class="btn-spinner"></span><span class="btn-label">取消任务</span></button></div>
+      </div>
+      <div class="monitor-browser"><div class="browser-placeholder"><span>任务未运行</span></div></div>
+    </div>
+    <div class="monitor-right">
+      <div class="logs-section">
+        <div class="section-header">执行日志</div>
+        <div class="logs-body"></div>
+      </div>
+      <div class="results-section">
+        <div class="section-header"><span>结果</span><div style="display:flex;align-items:center;gap:6px"><span class="results-count"></span><a class="result-link result-download" href="#" target="_blank" style="display:none">下载</a></div></div>
+        <div class="results-grid"><div class="result-empty">等待任务执行...</div></div>
       </div>
     </div>
   </div>
@@ -397,7 +421,7 @@ body{font-family:var(--f-body);background:var(--bg-base);color:var(--tx-0);-webk
   <div class="modal">
     <div class="modal-head"><h3>添加登录态</h3><button class="modal-close" onclick="closeModal('addContextModal')">&times;</button></div>
     <div class="modal-body">
-      <div class="field"><label class="field-label">渠道</label><select class="field-select" id="ctxPlatform"><option value="taobao">淘宝</option><option value="xiaohongshu">小红书</option></select></div>
+      <div class="field"><label class="field-label">渠道</label><select class="field-select" id="ctxPlatform" onchange="document.getElementById('ctxTargetUrl').value={taobao:'taobao.com',tmall:'tmall.com',jd:'jd.com',xiaohongshu:'xiaohongshu.com'}[this.value]||''"><option value="taobao">淘宝</option><option value="tmall">天猫</option><option value="jd">京东</option><option value="xiaohongshu">小红书</option></select></div>
       <div class="field"><label class="field-label">备注名称</label><input class="field-input" type="text" id="ctxName" placeholder="如：工作号、个人号" /></div>
       <div class="field"><label class="field-label">目标网址</label><input class="field-input" type="text" id="ctxTargetUrl" placeholder="taobao.com（可选）" /></div>
     </div>
@@ -415,8 +439,8 @@ body{font-family:var(--f-body);background:var(--bg-base);color:var(--tx-0);-webk
     <div class="browser-bar">
       <span id="browserUrlBar">-</span>
       <a id="browserNewTab" class="btn btn-ghost btn-xs" href="#" target="_blank" style="text-decoration:none">新窗口打开</a>
-      <button class="btn btn-ghost btn-xs" onclick="closeModal('browserModal')">取消</button>
-      <button class="btn btn-ok btn-xs" id="confirmLoginBtn" onclick="confirmLogin()"><span class="btn-spinner"></span><span class="btn-label">我已登录</span></button>
+      <button class="btn btn-ghost btn-xs" onclick="closeModal('browserModal')" style="color:var(--tx-3)">取消</button>
+      <button class="btn btn-primary btn-xs" id="confirmLoginBtn" onclick="confirmLogin()"><span class="btn-spinner"></span><span class="btn-label">我已登录</span></button>
     </div>
   </div>
 </div>
@@ -425,20 +449,24 @@ body{font-family:var(--f-body);background:var(--bg-base);color:var(--tx-0);-webk
   <div class="modal">
     <div class="modal-head"><h3>创建任务</h3><button class="modal-close" onclick="closeModal('createTaskModal')">&times;</button></div>
     <div class="modal-body">
-      <div class="field"><label class="field-label">任务类型</label><select class="field-select" id="taskType"><option value="taobao_link_search">淘宝链接采集</option><option value="taobao_keyword_search">淘宝关键词搜索</option></select></div>
-      <div class="field"><label class="field-label">浏览器上下文</label><select class="field-select" id="taskContext"></select><div class="field-hint" id="taskContextHint">加载中...</div></div>
-      <div class="field"><label class="field-label">关键词（每行一个，可空默认 SKG）</label><textarea class="field-textarea" id="taskKeywords" placeholder="SKG"></textarea></div>
+      <div class="field"><label class="field-label">浏览器上下文</label><select class="field-select" id="taskContext" onchange="_onContextChange()"></select><div class="field-hint" id="taskContextHint">加载中...</div></div>
+      <div class="field"><label class="field-label">任务类型</label><select class="field-select" id="taskType"></select></div>
+      <div class="field"><label class="field-label">定时频率</label><select class="field-select" id="taskSchedule" onchange="_onScheduleChange()"><option value="">不定时</option><option value="3600">每小时一次</option><option value="18000">每 5 小时一次</option><option value="86400">每天一次</option><option value="custom">自定义秒数</option></select><input class="field-input" type="number" id="taskScheduleCustom" min="1" placeholder="自定义间隔秒数" style="display:none;margin-top:8px" /></div>
+      <div class="field"><label class="field-label">关键词 / URL（每行一个，可空默认 SKG）</label><textarea class="field-textarea" id="taskKeywords" placeholder="SKG 或商品 URL"></textarea></div>
       <div class="field"><label class="field-label">每关键词结果数</label><input class="field-input" type="number" id="taskLimit" value="1000" min="1" max="5000" /></div>
+      <div class="field"><label class="field-label">标题必须包含（可选，如"筋膜枪"）</label><input class="field-input" type="text" id="taskTitleRequired" placeholder="留空不过滤" /></div>
+      <div class="field"><label class="field-label">标题排除关键词（可选，逗号分隔）</label><input class="field-input" type="text" id="taskTitleBlacklist" placeholder="飞机,吸吸,改装头,替换头" /></div>
+      <div class="field"><label class="field-label">待创建任务</label><div class="task-draft-list" id="taskDraftList"><div class="field-hint">可先添加多条独立任务，再统一创建。</div></div></div>
     </div>
-    <div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal('createTaskModal')">取消</button><button class="btn btn-primary" id="createTaskBtn" onclick="createTask()"><span class="btn-spinner"></span><span class="btn-label">执行</span></button></div>
+    <div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal('createTaskModal')">取消</button><button class="btn btn-ghost" id="addTaskDraftBtn" onclick="addTaskDraft()"><span class="btn-spinner"></span><span class="btn-label">添加到列表</span></button><button class="btn btn-primary" id="createTaskBtn" onclick="createTaskBatch()"><span class="btn-spinner"></span><span class="btn-label">创建全部</span></button></div>
   </div>
 </div>
 
 <div class="overlay" id="cookiesModal">
-  <div class="modal" style="width:680px">
+  <div class="modal" style="width:720px">
     <div class="modal-head"><h3>Cookies</h3><button class="modal-close" onclick="closeModal('cookiesModal')">&times;</button></div>
-    <div class="modal-body" style="padding:14px">
-      <div id="cookiesLoading" style="text-align:center;padding:36px"><div class="spinner" style="margin:0 auto 10px"></div><div style="color:var(--tx-3);font-family:var(--f-mono);font-size:11px">正在获取 Cookies...</div></div>
+    <div class="modal-body" style="padding:16px">
+      <div id="cookiesLoading" style="text-align:center;padding:40px"><div class="spinner" style="margin:0 auto 12px"></div><div style="color:var(--tx-3);font-family:var(--font-mono);font-size:11px">正在获取 Cookies...</div></div>
       <div id="cookiesContent" style="display:none"><div id="cookiesTable"></div></div>
     </div>
     <div class="modal-footer">
@@ -455,80 +483,141 @@ let currentMonitorTaskId=null;
 let pollTimer=null;
 let currentCookiesStr='';
 let _lastBrowserUrl=null;
+let _allTasks=[];
+let _allContexts={};
+let _taskDrafts=[];
 
 document.getElementById('apiKeyInput').value=apiKey;
 
-function toast(msg,type='info',duration=3000){
-  const c=document.getElementById('toastContainer');
-  const icons={ok:'&#10003;',err:'&#10007;',warn:'&#9888;',info:'&#8505;'};
-  const el=document.createElement('div');
-  el.className=`toast toast-${type}`;
-  el.innerHTML=`<span class="toast-icon">${icons[type]||icons.info}</span><span class="toast-msg">${esc(msg)}</span><button class="toast-close" onclick="this.parentElement.remove()">&times;</button>`;
-  c.appendChild(el);
-  if(duration>0)setTimeout(()=>{el.classList.add('removing');setTimeout(()=>el.remove(),200)},duration);
-}
-function confirm2(title,msg,onOk){
-  const ov=document.getElementById('confirmOverlay');
-  document.getElementById('confirmTitle').textContent=title;
-  document.getElementById('confirmMsg').textContent=msg;
-  const ok=document.getElementById('confirmOk'),cc=document.getElementById('confirmCancel');
-  ok.classList.remove('is-loading');ov.classList.add('open');
-  function cleanup(){ov.classList.remove('open');ok.onclick=cc.onclick=null}
-  cc.onclick=cleanup;
-  ok.onclick=()=>{ok.classList.add('is-loading');Promise.resolve(onOk()).then(cleanup).catch(cleanup)};
-}
-function btnLoading(btn,loading){
-  if(typeof btn==='string')btn=document.getElementById(btn);
-  if(!btn)return;
-  if(loading){btn.classList.add('is-loading');btn.disabled=true}
-  else{btn.classList.remove('is-loading');btn.disabled=false}
-}
+function toast(msg,type='info',duration=3000){const c=document.getElementById('toastContainer');const icons={ok:'&#10003;',err:'&#10007;',warn:'&#9888;',info:'&#8505;'};const el=document.createElement('div');el.className=`toast toast-${type}`;el.innerHTML=`<span class="toast-icon">${icons[type]||icons.info}</span><span class="toast-msg">${esc(msg)}</span><button class="toast-close" onclick="this.parentElement.remove()">&times;</button>`;c.appendChild(el);if(duration>0)setTimeout(()=>{el.classList.add('removing');setTimeout(()=>el.remove(),200)},duration)}
+function confirm2(title,msg,onOk){const ov=document.getElementById('confirmOverlay');document.getElementById('confirmTitle').textContent=title;document.getElementById('confirmMsg').textContent=msg;const ok=document.getElementById('confirmOk'),cc=document.getElementById('confirmCancel');ok.classList.remove('is-loading');ov.classList.add('open');function cleanup(){ov.classList.remove('open');ok.onclick=cc.onclick=null}cc.onclick=cleanup;ok.onclick=()=>{ok.classList.add('is-loading');Promise.resolve(onOk()).then(cleanup).catch(cleanup)}}
+function btnLoading(btn,loading){if(typeof btn==='string')btn=document.getElementById(btn);if(!btn)return;if(loading){btn.classList.add('is-loading');btn.disabled=true}else{btn.classList.remove('is-loading');btn.disabled=false}}
 function closeModal(id){document.getElementById(id).classList.remove('open')}
 function showModal(id){document.getElementById(id).classList.add('open')}
 function statusLabel(s){return{pending:'未登录',logged_in:'已登录',in_use:'使用中',running:'运行中',completed:'已完成',failed:'已失败',cancelled:'已取消',waiting_human_input:'等待输入'}[s]||s}
 function statusTag(s){return`<span class="tag tag-${s}">${statusLabel(s)}</span>`}
 function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
-async function api(m,p,b){
-  const o={method:m,headers:{'Content-Type':'application/json'}};
-  if(apiKey)o.headers['Authorization']=`Bearer ${apiKey}`;
-  if(b)o.body=JSON.stringify(b);
-  return fetch(`${API_BASE}${p}`,o).then(r=>r.json());
+function scheduleLabel(v){v=String(v||'');return{'3600':'每小时','18000':'每 5 小时','86400':'每天'}[v]||(v?`每 ${esc(v)} 秒`:'不定时')}
+function scheduleMeta(t){if(!t.schedule)return'';const last=t.last_run_at?new Date(t.last_run_at).toLocaleString('zh-CN',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}):'尚未运行';return`<span title="定时：${scheduleLabel(t.schedule)}">定时：${scheduleLabel(t.schedule)}</span><span title="上次：${esc(last)}">上次：${esc(last)}</span>`}
+async function api(m,p,b){const o={method:m,headers:{'Content-Type':'application/json'}};if(apiKey)o.headers['Authorization']=`Bearer ${apiKey}`;if(b)o.body=JSON.stringify(b);return fetch(`${API_BASE}${p}`,o).then(r=>r.json())}
+
+function saveApiKey(){apiKey=document.getElementById('apiKeyInput').value.trim();if(!apiKey){toast('请输入 API Key','warn');return}localStorage.setItem('apiKey',apiKey);btnLoading('connectBtn',true);Promise.all([loadContexts(),loadTasks()]).then(()=>{startPolling();toast('连接成功','ok')}).catch(()=>toast('连接失败','err')).finally(()=>btnLoading('connectBtn',false))}
+
+/* Dashboard */
+function backToDashboard(){currentMonitorTaskId=null;_lastBrowserUrl=null;document.getElementById('dashboardView').style.display='';document.getElementById('monitorRoot').style.display='none';document.getElementById('productsView').style.display='none';renderDashboard()}
+
+let _prodOffset=0,_prodLoading=false;
+function showProducts(){document.getElementById('dashboardView').style.display='none';document.getElementById('monitorRoot').style.display='none';document.getElementById('productsView').style.display='';_prodOffset=0;document.getElementById('productsGrid').innerHTML='';loadProducts()}
+async function loadProducts(){if(_prodLoading)return;_prodLoading=true;_prodOffset=0;document.getElementById('productsGrid').innerHTML='<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--tx-3)">加载中...</div>';try{const p=document.getElementById('prodPlatform').value,kw=document.getElementById('prodKeyword').value;let url='/api/products/?limit=50';if(p)url+='&platform='+encodeURIComponent(p);if(kw)url+='&keyword='+encodeURIComponent(kw);const r=await api('GET',url);if(!r.success){document.getElementById('productsGrid').innerHTML='<div style="grid-column:1/-1;text-align:center;color:var(--err)">加载失败</div>';return}const d=r.data;document.getElementById('productsCount').textContent=d.total+' 条商品';const grid=document.getElementById('productsGrid');grid.innerHTML='';if(!d.items.length){document.getElementById('productsEmpty').style.display='';document.getElementById('productsMore').style.display='none';return}document.getElementById('productsEmpty').style.display='none';renderProductCards(d.items,grid);document.getElementById('productsMore').style.display=d.items.length<d.total?'':'none';_prodOffset=d.items.length}catch(e){document.getElementById('productsGrid').innerHTML='<div style="grid-column:1/-1;text-align:center;color:var(--err)">请求异常</div>'}finally{_prodLoading=false}}
+async function loadMoreProducts(){if(_prodLoading)return;_prodLoading=true;try{const p=document.getElementById('prodPlatform').value,kw=document.getElementById('prodKeyword').value;let url='/api/products/?offset='+_prodOffset+'&limit=50';if(p)url+='&platform='+encodeURIComponent(p);if(kw)url+='&keyword='+encodeURIComponent(kw);const r=await api('GET',url);if(!r.success)return;const d=r.data;renderProductCards(d.items,document.getElementById('productsGrid'));_prodOffset+=d.items.length;document.getElementById('productsMore').style.display=_prodOffset<d.total?'':'none'}finally{_prodLoading=false}}
+function renderProductCards(items,grid){const platformMap={taobao:'淘宝',tmall:'天猫',jd:'京东'};const platformColor={taobao:'#ff5000',tmall:'#ff0036',jd:'#e1251b'};for(const item of items){const card=document.createElement('div');card.style.cssText='background:var(--bg-1);border:1px solid var(--bd-0);border-radius:var(--radius);overflow:hidden;transition:border-color .2s;cursor:pointer';card.onmouseenter=function(){this.style.borderColor='var(--accent)'};card.onmouseleave=function(){this.style.borderColor='var(--bd-0)'};const imgSrc=item.image||'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22200%22><rect fill=%22%231a1a2e%22 width=%22200%22 height=%22200%22/></svg>';const tagColor=platformColor[item.platform]||'var(--accent)';const tagText=platformMap[item.platform]||item.platform;card.innerHTML=`<div style="position:relative;padding-top:100%;background:var(--bg-0)"><img src="${esc(imgSrc)}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" loading="lazy" /><span style="position:absolute;top:8px;right:8px;background:${tagColor};color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;letter-spacing:.05em">${esc(tagText)}</span></div><div style="padding:10px 12px"><div style="font-size:12px;color:var(--tx-0);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:36px">${esc(item.title||'')}</div><div style="display:flex;align-items:baseline;gap:4px;margin-top:6px"><span style="font-family:var(--font-display);font-size:18px;font-weight:800;color:var(--accent)">¥${esc(item.price||'--')}</span></div><div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;font-size:10px;color:var(--tx-3)"><span>${esc(item.sales||'')}</span><span style="max-width:60%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(item.shop_name||'')}</span></div></div>`;card.onclick=()=>window.open(item.url,'_blank');grid.appendChild(card)}}
+
+function renderDashboard(){
+  const tasks=_allTasks;
+  // Stats
+  document.getElementById('statRunning').textContent=tasks.filter(t=>t.status==='running'||t.status==='pending'||t.status==='waiting_human_input').length;
+  document.getElementById('statCompleted').textContent=tasks.filter(t=>t.status==='completed').length;
+  document.getElementById('statFailed').textContent=tasks.filter(t=>t.status==='failed').length;
+  const ctxData=_allContexts;
+  let ctxCount=0;for(const cs of Object.values(ctxData)){if(Array.isArray(cs))ctxCount+=cs.length}
+  document.getElementById('statContexts').textContent=ctxCount;
+
+  // Running tasks monitor
+  const running=tasks.filter(t=>t.status==='running'||t.status==='pending'||t.status==='waiting_human_input');
+  let runH='';
+  if(running.length){
+    runH='<div class="running-grid">';
+    for(const t of running){
+      const kw=t.result?.keywords||[];
+      const logs=t.logs||[];
+      const lastLogs=logs.slice(-5);
+      let logH='';
+      for(const l of lastLogs){
+        const statusIcon=l.status==='completed'?'&#10003;':l.status==='running'?'&#9679;':'&#9675;';
+        logH+=`<div class="rc-log-item"><span class="rc-log-num">${l.step||''}</span><span class="rc-log-name">${esc(l.name||'')}</span><span class="rc-log-status">${l.status==='running'?'<span class="spinner spinner-sm" style="border-top-color:var(--accent)"></span>':''}</span></div>`;
+      }
+      const sm=scheduleMeta(t);
+      runH+=`<div class="running-card">
+        <div class="rc-head"><span class="rc-name">${esc(t.task_type)}${kw.length?' — '+esc(kw.join(', ')):''}</span>${statusTag(t.status)}</div>
+        ${sm?`<div class="tg-meta" style="margin-bottom:8px">${sm}</div>`:''}
+        <div class="rc-progress"><div class="rc-progress-fill" style="width:${t.progress}%"></div></div>
+        <div class="rc-progress-text"><span>${t.progress}%</span><span>${t.created_at?new Date(t.created_at).toLocaleString('zh-CN',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}):''}</span></div>
+        ${lastLogs.length?`<div class="rc-logs">${logH}</div>`:''}
+        <div class="rc-actions">
+          ${t.browser_url?`<a class="btn btn-ghost btn-xs" href="${esc(t.browser_url)}" target="_blank">打开浏览器</a>`:''}
+          <button class="btn btn-ghost btn-xs" onclick="event.stopPropagation();selectTask('${t.task_id}','${t.status}')">查看详情</button>
+          <button class="btn btn-danger btn-xs" onclick="event.stopPropagation();cancelTaskById('${t.task_id}')">取消</button>
+          ${t.status==='failed'||t.status==='cancelled'?`<button class="btn btn-primary btn-xs" onclick="event.stopPropagation();retryTask('${t.task_id}')">重试</button>`:''}
+        </div>
+      </div>`;
+    }
+    runH+='</div>';
+  } else {
+    runH='<div style="color:var(--tx-3);font-size:11px;padding:12px 0;font-family:var(--font-mono)">当前无运行中的任务</div>';
+  }
+  document.getElementById('runningMonitor').innerHTML=runH;
+
+  // Context chips
+  const labelMap={xiaohongshu:'小红书',taobao:'淘宝',tmall:'天猫',jd:'京东',douyin:'抖音',unknown:'其他',other:'其他'};
+  let chipH='';
+  for(const[p,cs]of Object.entries(ctxData)){
+    if(!Array.isArray(cs))continue;
+    for(const c of cs){
+      const name=c.name||labelMap[p]||p;
+      chipH+=`<div class="ctx-chip"><span class="dot ${c.status}"></span><span>${esc(name)}</span>`;
+      if(c.status==='pending')chipH+=`<div class="ctx-chip-actions"><button class="btn btn-primary btn-xs" id="loginBtn_${c.id}" onclick="startLogin('${esc(c.id)}')"><span class="btn-label">登录</span></button></div>`;
+      if(c.status==='logged_in')chipH+=`<div class="ctx-chip-actions"><button class="btn btn-primary btn-xs" id="loginBtn_${c.id}" onclick="startLogin('${esc(c.id)}')"><span class="btn-label">打开</span></button><button class="btn btn-ghost btn-xs" id="cookiesBtn_${c.id}" onclick="viewCookies('${esc(c.id)}')"><span class="btn-label">Cookies</span></button></div>`;
+      chipH+=`<button class="btn btn-ghost btn-xs" onclick="deleteContext('${esc(c.id)}')" style="margin-left:2px">删除</button></div>`;
+    }
+  }
+  document.getElementById('contextChips').innerHTML=chipH||'<div style="color:var(--tx-3);font-size:11px">暂无上下文，点击 + 上下文 添加</div>';
+
+  // Task grid (non-running)
+  const notRunning=tasks.filter(t=>t.status!=='running'&&t.status!=='pending'&&t.status!=='waiting_human_input');
+  let gridH='';
+  for(const t of notRunning){
+    const kw=t.result?.keywords||[];
+    const kwStr=kw.length?kw.join(', '):'';
+    const sm=scheduleMeta(t);
+    gridH+=`<div class="task-grid-card status-${t.status}" onclick="selectTask('${t.task_id}','${t.status}')">
+      <div class="tg-head"><span class="tg-name">${esc(t.task_type)}</span>${statusTag(t.status)}</div>
+      <div class="tg-meta"><span>${kwStr?esc(kwStr):''}</span>${sm}</div>
+      <div class="tg-progress"><div class="tg-progress-fill" style="width:${t.progress}%"></div></div>
+      <div class="tg-footer"><span>${t.progress}%</span><span>${t.created_at?new Date(t.created_at).toLocaleString('zh-CN',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}):''}</span>${(t.status==='failed'||t.status==='cancelled')?`<button class="btn btn-primary btn-xs" onclick="event.stopPropagation();retryTask('${t.task_id}')">重试</button>`:''}</div>
+    </div>`;
+  }
+  document.getElementById('taskGrid').innerHTML=gridH||'<div style="color:var(--tx-3);font-size:11px;padding:20px;text-align:center">暂无历史任务</div>';
 }
 
-function saveApiKey(){
-  apiKey=document.getElementById('apiKeyInput').value.trim();
-  if(!apiKey){toast('请输入 API Key','warn');return}
-  localStorage.setItem('apiKey',apiKey);
-  btnLoading('connectBtn',true);
-  Promise.all([loadContexts(),loadTasks()]).then(()=>{startPolling();toast('连接成功','ok')}).catch(()=>toast('连接失败','err')).finally(()=>btnLoading('connectBtn',false));
-}
+function cancelTaskById(tid){confirm2('取消任务','确定要取消此任务吗？',async()=>{const r=await api('POST',`/api/tasks/${tid}/cancel`);if(r.success){toast('任务已取消','ok');loadTasks();loadContexts()}else toast(r.error||'取消失败','err')})}
+async function retryTask(tid){const r=await api('POST',`/api/tasks/${tid}/retry`);if(r.success){toast('任务已重新开始，将跳过已采集的链接','ok');loadTasks();loadContexts()}else toast(r.error||'重试失败','err')}
 
-/* Contexts */
 async function loadContexts(){
   try{
     const r=await api('GET','/api/contexts/');
-    if(!r.success){document.getElementById('contextList').innerHTML='<div class="empty" style="padding:16px"><span style="font-size:10px">加载失败</span></div>';return}
-    const g=r.data||{},el=document.getElementById('contextList');
-    const labelMap={xiaohongshu:'小红书',taobao:'淘宝',douyin:'抖音',unknown:'其他',other:'其他'};
-    let h='';
-    for(const[p,cs]of Object.entries(g)){
-      if(!Array.isArray(cs)||!cs.length)continue;
-      for(const c of cs){
-        const name=c.name||c.platform||'未命名';
-        h+=`<div class="ctx-card">
-          <div class="ctx-card-head"><span class="status-dot status-dot-${c.status}"></span><span class="ctx-card-name">${esc(name)}</span></div>
-          <div class="ctx-card-meta"><span>${statusLabel(c.status)}</span><span>${c.created_at?new Date(c.created_at).toLocaleString('zh-CN',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}):''}</span></div>
-          <div class="ctx-card-actions">
-            ${c.status==='pending'?`<button class="btn btn-primary btn-xs" id="loginBtn_${c.id}" onclick="startLogin('${esc(c.id)}')"><span class="btn-spinner"></span><span class="btn-label">登录</span></button>`:''}
-            ${c.status==='logged_in'?`<button class="btn btn-primary btn-xs" id="loginBtn_${c.id}" onclick="startLogin('${esc(c.id)}')"><span class="btn-spinner"></span><span class="btn-label">打开浏览器</span></button><button class="btn btn-ghost btn-xs" id="cookiesBtn_${c.id}" onclick="viewCookies('${esc(c.id)}')"><span class="btn-spinner"></span><span class="btn-label">Cookies</span></button>`:''}
-            ${c.status==='in_use'?`<span style="font-size:9.5px;color:var(--accent);display:flex;align-items:center;gap:3px"><span class="spinner spinner-sm" style="border-top-color:var(--accent)"></span>执行中</span>`:''}
-            ${c.status!=='in_use'?`<button class="btn btn-ghost btn-xs" onclick="deleteContext('${esc(c.id)}')">删除</button>`:''}
-          </div></div>`;
-      }
-    }
-    el.innerHTML=h||'<div class="empty" style="padding:14px"><span style="font-size:10px">暂无上下文</span></div>';
-  }catch(e){document.getElementById('contextList').innerHTML='<div class="empty" style="padding:14px"><span style="font-size:10px">请求异常</span></div>'}
+    if(!r.success)return;
+    _allContexts=r.data||{};
+    renderDashboard();
+  }catch{}
 }
+
+async function loadTasks(){
+  const r=await api('GET','/api/tasks/');
+  if(!r.success)return;
+  _allTasks=r.data||[];
+  renderDashboard();
+  // If a task is selected, also update monitor
+  if(currentMonitorTaskId)renderMonitor();
+}
+
+function selectTask(tid,st){
+  currentMonitorTaskId=tid;_lastBrowserUrl=null;
+  document.getElementById('dashboardView').style.display='none';
+  document.getElementById('monitorRoot').style.display='flex';
+  renderMonitor();
+}
+
+/* Contexts */
 function showAddContextModal(){document.getElementById('ctxName').value='';document.getElementById('ctxTargetUrl').value='';showModal('addContextModal')}
 async function createContext(){
   btnLoading('createContextBtn',true);
@@ -541,19 +630,35 @@ async function createContext(){
 function deleteContext(id){confirm2('删除上下文','确定删除？此操作不可恢复。',async()=>{const r=await api('DELETE',`/api/contexts/${id}`);if(r.success){toast('已删除','ok');loadContexts()}else toast(r.error||'删除失败','err')})}
 async function startLogin(id){
   const btn=document.getElementById(`loginBtn_${id}`);btnLoading(btn,true);
+  window._loginContextId=id;
+  const iframe=document.getElementById('browserIframe'),loading=document.getElementById('browserLoading');
+  loading.style.display='grid';iframe.onload=null;iframe.src='about:blank';
+  document.getElementById('browserUrlBar').textContent='正在启动云浏览器...';document.getElementById('browserNewTab').href='#';
+  showModal('browserModal');
   try{
     const r=await api('POST',`/api/contexts/${id}/login`);
-    if(!r.success){toast(r.error||'启动失败','err');return}
-    const url=r.data.browser_url;window._loginContextId=id;
-    const iframe=document.getElementById('browserIframe'),loading=document.getElementById('browserLoading');
-    loading.style.display='grid';iframe.src=url;iframe.onload=()=>{loading.style.display='none'};
+    if(!r.success){closeModal('browserModal');toast(r.error||'启动失败','err');return}
+    const url=r.data.browser_url;
+    loading.style.display='grid';iframe.onload=()=>{loading.style.display='none'};iframe.src=url;
     document.getElementById('browserUrlBar').textContent=url;document.getElementById('browserNewTab').href=url;
-    showModal('browserModal');
-  }catch{toast('启动浏览器失败','err')}finally{btnLoading(btn,false)}
+  }catch{closeModal('browserModal');toast('启动浏览器失败','err')}finally{btnLoading(btn,false)}
 }
 async function confirmLogin(){
-  const id=window._loginContextId;if(!id)return;btnLoading('confirmLoginBtn',true);
-  try{const r=await api('POST',`/api/contexts/${id}/confirm-login`);if(r.success){closeModal('browserModal');toast('登录状态已保存','ok');loadContexts()}else toast(r.error||'确认失败','err')}catch{toast('确认请求异常','err')}finally{btnLoading('confirmLoginBtn',false)}
+  const id=window._loginContextId;if(!id)return;
+  const btn=document.getElementById('confirmLoginBtn');
+  btnLoading(btn,true);
+  try{
+    const r=await api('POST',`/api/contexts/${id}/confirm-login`);
+    if(r.success){
+      btn.querySelector('.btn-spinner').style.display='none';
+      btn.querySelector('.btn-label').textContent='保存成功';
+      btn.disabled=true;
+      await new Promise(r=>setTimeout(r,800));
+      closeModal('browserModal');
+      toast('登录状态已保存','ok');
+      loadContexts();
+    }else{toast(r.error||'确认失败','err');btnLoading(btn,false)}
+  }catch{toast('确认请求异常','err');btnLoading(btn,false)}
 }
 
 /* Cookies */
@@ -565,9 +670,9 @@ async function viewCookies(id){
     if(!r.success){document.getElementById('cookiesLoading').innerHTML=`<div style="color:var(--err);font-size:11px">${esc(r.error||'获取失败')}</div>`;return}
     const cookies=r.data.cookies||[];currentCookiesStr=r.data.cookies_str||'';
     document.getElementById('cookiesLoading').style.display='none';document.getElementById('cookiesContent').style.display='block';
-    if(!cookies.length){document.getElementById('cookiesTable').innerHTML='<div style="text-align:center;padding:16px;color:var(--tx-3);font-family:var(--f-mono);font-size:11px">无 Cookies</div>';return}
-    let h=`<div style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><span style="font-size:9px;font-weight:700;color:var(--tx-3);text-transform:uppercase;letter-spacing:.08em">Cookie String</span><button class="btn btn-ghost btn-xs" onclick="copyCookiesStr()"><span class="btn-label">复制</span></button></div><div style="background:var(--bg-2);border:1px solid var(--bd-0);border-radius:var(--r);padding:8px 10px;font-family:var(--f-mono);font-size:10px;color:var(--tx-1);word-break:break-all;max-height:64px;overflow-y:auto;line-height:1.5">${esc(currentCookiesStr)}</div></div>`;
-    h+='<div style="font-size:9px;font-weight:700;color:var(--tx-3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">Cookie 列表</div>';
+    if(!cookies.length){document.getElementById('cookiesTable').innerHTML='<div style="text-align:center;padding:20px;color:var(--tx-3);font-family:var(--font-mono);font-size:11px">无 Cookies</div>';return}
+    let h=`<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span style="font-size:9px;font-weight:700;color:var(--tx-3);text-transform:uppercase;letter-spacing:.08em">Cookie String</span><button class="btn btn-ghost btn-xs" onclick="copyCookiesStr()"><span class="btn-label">复制</span></button></div><div style="background:var(--bg-2);border:1px solid var(--bd-0);border-radius:var(--radius);padding:10px 12px;font-family:var(--font-mono);font-size:10px;color:var(--tx-1);word-break:break-all;max-height:64px;overflow-y:auto;line-height:1.5">${esc(currentCookiesStr)}</div></div>`;
+    h+='<div style="font-size:9px;font-weight:700;color:var(--tx-3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Cookie 列表</div>';
     h+='<div class="cookies-scroll"><table class="cookies-table"><thead><tr><th>名称</th><th>值</th><th>域名</th><th>路径</th></tr></thead><tbody>';
     for(const c of cookies)h+=`<tr><td title="${esc(c.name)}">${esc(c.name)}</td><td title="${esc(c.value)}">${esc(c.value)}</td><td>${esc(c.domain)}</td><td>${esc(c.path)}</td></tr>`;
     h+='</tbody></table></div>';
@@ -576,100 +681,54 @@ async function viewCookies(id){
 }
 function copyCookiesStr(){if(!currentCookiesStr)return;navigator.clipboard.writeText(currentCookiesStr).then(()=>toast('已复制','ok'))}
 
-/* Tasks */
-async function loadTasks(){
-  const r=await api('GET','/api/tasks/');if(!r.success)return;
-  const ts=r.data,el=document.getElementById('taskList');let h='';
-  for(const t of ts){
-    const active=t.task_id===currentMonitorTaskId;
-    h+=`<div class="task-card ${active?'active':''}" onclick="selectTask('${t.task_id}','${t.status}')">
-      <div class="task-card-head"><span class="task-card-name">${esc(t.task_type)}</span>${statusTag(t.status)}</div>
-      <div class="progress-bar"><div class="progress-fill" style="width:${t.progress}%"></div></div>
-      <div class="task-card-footer"><span>${t.progress}%</span><span>${t.created_at?new Date(t.created_at).toLocaleString('zh-CN',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}):''}</span></div>
-    </div>`;
-  }
-  el.innerHTML=h||'<div class="empty" style="padding:14px"><span style="font-size:10px">暂无任务</span></div>';
-}
-function showCreateTaskModal(){
-  const s=document.getElementById('taskContext');s.innerHTML='<option value="">加载中...</option>';
-  document.getElementById('taskContextHint').textContent='加载可用上下文...';showModal('createTaskModal');
-  api('GET','/api/contexts/').then(r=>{
-    if(!r.success){toast('加载上下文失败','err');return}
-    s.innerHTML='';const labelMap={xiaohongshu:'小红书',taobao:'淘宝',douyin:'抖音',unknown:'其他',other:'其他'};
-    const g=r.data||{};let count=0;
-    for(const[p,cs]of Object.entries(g)){if(!Array.isArray(cs))continue;for(const c of cs)if(c.status==='logged_in'){s.innerHTML+=`<option value="${esc(c.id)}">${esc(c.name||c.platform||'未命名')} (${esc(labelMap[p]||p)})</option>`;count++}}
-    if(!count){s.innerHTML='<option value="">无可用上下文</option>';const hint=document.getElementById('taskContextHint');hint.textContent='请先添加并登录浏览器上下文';hint.style.color='var(--warn)'}
-    else{const hint=document.getElementById('taskContextHint');hint.textContent=count+' 个可用上下文';hint.style.color=''}
-  }).catch(()=>{s.innerHTML='<option value="">加载失败</option>';document.getElementById('taskContextHint').textContent='加载失败'})
-}
-async function createTask(){
-  const tt=document.getElementById('taskType').value,cid=document.getElementById('taskContext').value,
-    kw=document.getElementById('taskKeywords').value,lm=parseInt(document.getElementById('taskLimit').value)||20,
-    ks=kw.split('\n').map(s=>s.trim()).filter(Boolean);
-  if(!cid){toast('请选择浏览器上下文','warn');return}
-  btnLoading('createTaskBtn',true);
-  try{
-    const r=await api('POST','/api/tasks/',{task_type:tt,context_id:cid,params:{keywords:ks.length?ks:undefined,limit:lm}});
-    if(r.success){closeModal('createTaskModal');toast('任务已创建','ok');loadTasks();selectTask(r.data.task_id,'pending')}
-    else toast(r.error||'创建失败','err');
-  }catch{toast('创建请求异常','err')}finally{btnLoading('createTaskBtn',false)}
-}
-function cancelTask(){
-  if(!currentMonitorTaskId)return;
-  confirm2('取消任务','确定要取消此任务吗？',async()=>{
-    btnLoading('cancelBtn',true);
-    try{const r=await api('POST',`/api/tasks/${currentMonitorTaskId}/cancel`);if(r.success){toast('任务已取消','ok');loadTasks();loadContexts()}else toast(r.error||'取消失败','err')}catch{toast('取消请求异常','err')}finally{btnLoading('cancelBtn',false)}
-  });
-}
-function selectTask(tid,st){currentMonitorTaskId=tid;_lastBrowserUrl=null;loadTasks();renderMonitor()}
+/* Task creation */
+const _TASK_TYPE_MAP={
+  taobao:[{value:'taobao_link_search',label:'淘宝链接采集'},{value:'tmall_link_search',label:'天猫链接采集'},{value:'taobao_keyword_search',label:'淘宝关键词搜索'},{value:'search_by_urls',label:'按 URL 检索'}],
+  tmall:[{value:'tmall_link_search',label:'天猫链接采集'},{value:'taobao_link_search',label:'淘宝链接采集'},{value:'search_by_urls',label:'按 URL 检索'}],
+  jd:[{value:'jd_link_search',label:'京东链接采集'},{value:'search_by_urls',label:'按 URL 检索'}],
+  xiaohongshu:[{value:'xiaohongshu_search',label:'小红书搜索'}],
+};
+function _onContextChange(){const s=document.getElementById('taskContext');const opt=s.selectedOptions[0];const platform=opt?opt.getAttribute('data-platform')||'':'';const tt=document.getElementById('taskType');const types=_TASK_TYPE_MAP[platform]||[];tt.innerHTML=types.map(t=>`<option value="${t.value}">${t.label}</option>`).join('');if(!types.length)tt.innerHTML='<option value="">请先选择上下文</option>'}
+function _onScheduleChange(){const sel=document.getElementById('taskSchedule'),custom=document.getElementById('taskScheduleCustom');custom.style.display=sel.value==='custom'?'':'none'}
+function showCreateTaskModal(){_taskDrafts=[];renderTaskDrafts();const s=document.getElementById('taskContext');s.innerHTML='<option value="">加载中...</option>';document.getElementById('taskContextHint').textContent='加载可用上下文...';showModal('createTaskModal');api('GET','/api/contexts/').then(r=>{if(!r.success){toast('加载上下文失败','err');return}s.innerHTML='';const labelMap={xiaohongshu:'小红书',taobao:'淘宝',tmall:'天猫',jd:'京东',douyin:'抖音',unknown:'其他',other:'其他'};const g=r.data||{};let count=0;for(const[p,cs]of Object.entries(g)){if(!Array.isArray(cs))continue;for(const c of cs)if(c.status==='logged_in'){s.innerHTML+=`<option value="${esc(c.id)}" data-platform="${esc(p)}">${esc(c.name||c.platform||'未命名')} (${esc(labelMap[p]||p)})</option>`;count++}}if(!count){s.innerHTML='<option value="">无可用上下文</option>';const hint=document.getElementById('taskContextHint');hint.textContent='请先添加并登录浏览器上下文';hint.style.color='var(--warn)'}else{const hint=document.getElementById('taskContextHint');hint.textContent=count+' 个可用上下文；每个任务绑定一个上下文';hint.style.color=''}_onContextChange()}).catch(()=>{s.innerHTML='<option value="">加载失败</option>';document.getElementById('taskContextHint').textContent='加载失败'})}
+function _taskTypeLabel(v){const opts=Array.from(document.getElementById('taskType').options);return (opts.find(o=>o.value===v)?.textContent)||v}
+function collectTaskDraft(){const tt=document.getElementById('taskType').value,cid=document.getElementById('taskContext').value,opt=document.getElementById('taskContext').selectedOptions[0],kw=document.getElementById('taskKeywords').value,lm=parseInt(document.getElementById('taskLimit').value)||20,tr=document.getElementById('taskTitleRequired').value.trim(),tb=document.getElementById('taskTitleBlacklist').value.split(/[,，]/).map(s=>s.trim()).filter(Boolean),ks=kw.split('\n').map(s=>s.trim()).filter(Boolean);let schedule=document.getElementById('taskSchedule').value;if(schedule==='custom')schedule=(parseInt(document.getElementById('taskScheduleCustom').value)||0).toString();if(schedule==='0')schedule='';if(!cid){toast('请选择浏览器上下文','warn');return null}if(!tt){toast('请选择任务类型','warn');return null}if(document.getElementById('taskSchedule').value==='custom'&&!schedule){toast('请输入自定义间隔秒数','warn');return null}const p=tt==='search_by_urls'?{urls:ks,limit:lm}:{keywords:ks.length?ks:undefined,limit:lm};if(tr)p.title_required=tr;if(tb.length)p.title_blacklist=tb;return{task_type:tt,task_label:_taskTypeLabel(tt),context_id:cid,context_label:opt?opt.textContent:cid,params:p,schedule,keywords:ks}}
+function addTaskDraft(){const draft=collectTaskDraft();if(!draft)return;_taskDrafts.push(draft);renderTaskDrafts();toast('已添加到待创建列表','ok',1600)}
+function removeTaskDraft(i){_taskDrafts.splice(i,1);renderTaskDrafts()}
+function renderTaskDrafts(){const el=document.getElementById('taskDraftList');if(!el)return;if(!_taskDrafts.length){el.innerHTML='<div class="field-hint">可先添加多条独立任务，再统一创建。</div>';return}el.innerHTML=_taskDrafts.map((d,i)=>`<div class="task-draft-card"><div class="task-draft-main"><div class="task-draft-title">${esc(d.task_label)} · ${esc(d.context_label)}</div><div class="task-draft-meta">${d.schedule?`定时 ${scheduleLabel(d.schedule)} · `:''}${esc((d.keywords||[]).slice(0,3).join(', ')||'默认参数')}</div></div><button class="task-draft-remove" onclick="removeTaskDraft(${i})">&times;</button></div>`).join('')}
+async function createTaskBatch(){const inline=_taskDrafts.length?null:collectTaskDraft();if(!_taskDrafts.length&&!inline)return;const drafts=_taskDrafts.length?_taskDrafts:[inline];btnLoading('createTaskBtn',true);try{const results=await Promise.all(drafts.map(d=>api('POST','/api/tasks/',{task_type:d.task_type,context_id:d.context_id,params:d.params,schedule:d.schedule}).catch(e=>({success:false,error:e.message||'请求异常'}))));const ok=results.filter(r=>r.success),fail=results.filter(r=>!r.success);if(ok.length){_taskDrafts=[];renderTaskDrafts();closeModal('createTaskModal');toast(`${ok.length} 个任务已创建${fail.length?`，${fail.length} 个失败`:''}`,fail.length?'warn':'ok');loadTasks();loadContexts();selectTask(ok[0].data.task_id,'pending')}else toast(fail[0]?.error||'创建失败','err')}catch{toast('创建请求异常','err')}finally{btnLoading('createTaskBtn',false)}}
+function cancelTask(){if(!currentMonitorTaskId)return;confirm2('取消任务','确定要取消此任务吗？',async()=>{btnLoading('cancelBtn',true);try{const r=await api('POST',`/api/tasks/${currentMonitorTaskId}/cancel`);if(r.success){toast('任务已取消','ok');loadTasks();loadContexts()}else toast(r.error||'取消失败','err')}catch{toast('取消请求异常','err')}finally{btnLoading('cancelBtn',false)}})}
 
-/* Monitor: DOM diffing to avoid iframe rebuild */
-function _getResults(t){
-  if(!t.result)return[];
-  if(Array.isArray(t.result.results))return t.result.results;
-  if(Array.isArray(t.result.items))return t.result.items;
-  if(Array.isArray(t.result.links))return t.result.links.map((l,i)=>({url:l,...(Array.isArray(t.result.items)&&t.result.items[i])}));
-  return[];
-}
-function _renderResultOutput(t){
-  const items=_getResults(t);
-  if(!items.length)return'<div style="padding:40px;color:var(--tx-3);text-align:center;font-family:var(--f-mono);font-size:11px">暂无结果数据</div>';
-  let h='<div class="result-output-head"><span class="result-output-title">共 '+items.length+' 条结果</span><div class="result-output-meta">';
-  if(t.result?.output_url)h+=`<a class="result-link" href="${t.result.output_url}" target="_blank">下载 JSON</a>`;
-  h+=`<button class="btn btn-ghost btn-xs" onclick="_copyResultJSON()"><span class="btn-label">复制 JSON</span></button></div></div>`;
-  h+='<table class="result-table"><thead><tr><th>#</th><th>标题</th><th>价格</th><th>销量</th><th>店铺</th><th>链接</th></tr></thead><tbody>';
-  for(let i=0;i<items.length;i++){
-    const item=items[i];
-    h+=`<tr><td>${i+1}</td><td title="${esc(item.title||'')}">${esc(item.title||item.name||'-')}</td><td>${esc(item.price||'-')}</td><td>${esc(item.sales||'-')}</td><td>${esc(item.shop||item.shop_name||'-')}</td><td style="max-width:200px;word-break:break-all;white-space:normal">${esc(item.url||item.link||'-')}</td></tr>`;
-  }
-  h+='</tbody></table>';
-  return h;
-}
-function _copyResultJSON(){
-  if(!currentMonitorTaskId)return;
-  api('GET',`/api/tasks/${currentMonitorTaskId}`).then(r=>{
-    if(!r.success)return;
-    const items=_getResults(r.data);
-    if(items.length){navigator.clipboard.writeText(JSON.stringify(items,null,2)).then(()=>toast('JSON 已复制','ok'))}
-    else if(r.data.result){navigator.clipboard.writeText(JSON.stringify(r.data.result,null,2)).then(()=>toast('JSON 已复制','ok'))}
-  });
-}
+/* Monitor rendering (unchanged logic) */
+function _getResults(t){if(!t.result)return[];if(Array.isArray(t.result.results))return t.result.results;if(Array.isArray(t.result.items))return t.result.items;if(Array.isArray(t.result.links))return t.result.links.map((l,i)=>({url:l,...(Array.isArray(t.result.items)&&t.result.items[i])}));return[]}
+function _renderResultOutput(t){const items=_getResults(t);if(!items.length)return'<div style="padding:40px;color:var(--tx-3);text-align:center;font-family:var(--font-mono);font-size:11px">暂无结果数据</div>';return`<div style="display:flex;align-items:center;justify-content:center;height:100%;gap:16px"><div style="text-align:center"><div style="font-size:14px;font-weight:700;color:var(--tx-0);margin-bottom:8px;font-family:var(--font-display)">共 ${items.length} 条结果</div><div style="font-size:10px;color:var(--tx-3);margin-bottom:20px">点击下载完整数据库查询结果</div><button class="btn btn-primary" onclick="_downloadResultJSON()"><span class="btn-label">下载 JSON</span></button></div></div>`}
+function _downloadResultJSON(){if(!currentMonitorTaskId)return;fetch(`/api/tasks/${currentMonitorTaskId}/results/download`,{headers:apiKey?{'Authorization':`Bearer ${apiKey}`}:{}}).then(r=>{if(!r.ok)throw new Error('download failed');const cd=r.headers.get('Content-Disposition')||'';const fn=(cd.match(/filename="(.+?)"/)||[])[1]||'results.json';return r.blob().then(blob=>({blob,fn}))}).then(({blob,fn})=>{const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=fn;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast('下载完成','ok')}).catch(()=>toast('下载失败','err'))}
 
 function renderMonitor(){
   if(!currentMonitorTaskId)return;
-  api('GET',`/api/tasks/${currentMonitorTaskId}`).then(r=>{if(r.success)_updateMonitorDOM(r.data)});
+  api('GET',`/api/tasks/${currentMonitorTaskId}`).then(r=>{
+    if(!r.success)return;
+    const t=r.data;
+    const isRunning=(t.status==='running'||t.status==='pending'||t.status==='waiting_human_input');
+    const isDone=(t.status==='completed'||t.status==='failed'||t.status==='cancelled');
+    if(isRunning||isDone){
+      api('GET',`/api/tasks/${currentMonitorTaskId}/results?limit=200`).then(rr=>{
+        const items=rr.success?rr.data.items:null;
+        const total=rr.success?rr.data.total:0;
+        _updateMonitorDOM(t,items,total);
+      });
+    }else{_updateMonitorDOM(t,null,0)}
+  });
 }
-function _updateMonitorDOM(t){
+
+function _updateMonitorDOM(t,linkItems,linkTotal){
   const root=document.getElementById('monitorRoot');
   const bu=t.browser_url||'';
   const isRunning=(t.status==='running'||t.status==='pending'||t.status==='waiting_human_input');
   const isDone=(t.status==='completed'||t.status==='failed'||t.status==='cancelled');
   const logs=t.logs||[];
-  const items=_getResults(t);
+  const items=linkItems||_getResults(t);
 
-  if(!root.querySelector('.monitor-bar')){_buildMonitor(root,t);return}
-
-  // Incremental: update bar
   const barName=root.querySelector('.monitor-bar-name');
   if(barName)barName.textContent=t.task_type;
   const barTag=root.querySelector('.monitor-bar .tag');
@@ -681,17 +740,14 @@ function _updateMonitorDOM(t){
   const cancelBtn=root.querySelector('#cancelBtn');
   if(cancelBtn)cancelBtn.style.display=isRunning?'':'none';
 
-  // Browser area: running=iframe, done=result table, else=placeholder
   const browserEl=root.querySelector('.monitor-browser');
   if(browserEl){
     if(isRunning&&bu){
       browserEl.querySelector('.result-output')?.remove();
       browserEl.querySelector('.browser-placeholder')?.remove();
       let iframe=browserEl.querySelector('.browser-iframe');
-      if(!iframe){
-        iframe=document.createElement('iframe');iframe.className='browser-iframe';iframe.allow='clipboard-read; clipboard-write';iframe.src=bu;
-        browserEl.appendChild(iframe);_lastBrowserUrl=bu;
-      }else if(_lastBrowserUrl!==bu){iframe.src=bu;_lastBrowserUrl=bu}
+      if(!iframe){iframe=document.createElement('iframe');iframe.className='browser-iframe';iframe.allow='clipboard-read; clipboard-write';iframe.src=bu;browserEl.appendChild(iframe);_lastBrowserUrl=bu}
+      else if(_lastBrowserUrl!==bu){iframe.src=bu;_lastBrowserUrl=bu}
     }else if(isDone&&items.length){
       browserEl.querySelector('.browser-iframe')?.remove();_lastBrowserUrl=null;
       browserEl.querySelector('.browser-placeholder')?.remove();
@@ -703,21 +759,19 @@ function _updateMonitorDOM(t){
       browserEl.querySelector('.result-output')?.remove();
       let ph=browserEl.querySelector('.browser-placeholder');
       if(!ph){ph=document.createElement('div');ph.className='browser-placeholder';browserEl.appendChild(ph)}
-      ph.innerHTML=isRunning?'<div style="display:flex;align-items:center;gap:6px"><div class="spinner spinner-sm" style="border-top-color:var(--tx-3)"></div>等待浏览器启动...</div>':'<span>任务未运行</span>';
+      ph.innerHTML=isRunning?'<div style="display:flex;align-items:center;gap:8px"><div class="spinner spinner-sm" style="border-top-color:var(--tx-3)"></div>等待浏览器启动...</div>':'<span>任务未运行</span>';
     }
   }
 
-  // Right panel: results summary
   const grid=root.querySelector('.results-grid');
   if(grid){
     const resultsCount=root.querySelector('.results-count');
     const dl=root.querySelector('.result-download');
-    if(items.length){
-      if(resultsCount)resultsCount.textContent=items.length+' 条';
+    const displayTotal=linkTotal||items.length;
+    if(displayTotal){
+      if(resultsCount)resultsCount.textContent=displayTotal+' 条';
       if(dl){if(t.result?.output_url){dl.href=t.result.output_url;dl.style.display=''}else dl.style.display='none'}
-      let rh='';for(const item of items){
-        rh+=`<div class="result-card"><div class="result-card-title">${esc(item.title||item.name||'-')}</div>${item.price?`<div class="result-card-price">${esc(item.price)}</div>`:''}<div class="result-card-meta">${item.author||item.shop_name||item.seller?`<span>${esc(item.author||item.shop_name||item.seller)}</span>`:''}${item.url||item.link?`<a href="${esc(item.url||item.link)}" target="_blank">链接</a>`:''}</div></div>`;
-      }
+      let rh='';for(const item of items){rh+=`<div class="result-card"><div class="result-card-title">${esc(item.title||item.name||'-')}</div>${item.price?`<div class="result-card-price">${esc(item.price)}</div>`:''}<div class="result-card-meta">${item.author||item.shop_name||item.seller?`<span>${esc(item.author||item.shop_name||item.seller)}</span>`:''}${item.url||item.link?`<a href="${esc(item.url||item.link)}" target="_blank">链接</a>`:''}</div></div>`}
       grid.innerHTML=rh;
     }else{
       if(resultsCount)resultsCount.textContent='';
@@ -726,65 +780,16 @@ function _updateMonitorDOM(t){
     }
   }
 
-  // Logs
   const logsBody=root.querySelector('.logs-body');
   if(logsBody){
     let lh='';for(const l of logs){const isR=l.status==='running';lh+=`<div class="log-item"><span class="log-num log-num-${l.status}">${isR?'<span class="spinner spinner-sm" style="border-top-color:currentColor"></span>':l.step}</span><span class="log-label">${esc(l.name)}</span><span class="log-time">${l.timestamp||''}</span></div>`}
-    logsBody.innerHTML=lh||'<div style="padding:14px;color:var(--tx-3);font-size:10px;text-align:center;font-family:var(--f-mono)">暂无日志</div>';
+    logsBody.innerHTML=lh||'<div style="padding:16px;color:var(--tx-3);font-size:10px;text-align:center;font-family:var(--font-mono)">暂无日志</div>';
   }
 }
 
-function _buildMonitor(root,t){
-  const bu=t.browser_url||'';
-  const isRunning=(t.status==='running'||t.status==='pending'||t.status==='waiting_human_input');
-  const isDone=(t.status==='completed'||t.status==='failed'||t.status==='cancelled');
-  const logs=t.logs||[];
-  const items=_getResults(t);
+function startPolling(){if(pollTimer)clearInterval(pollTimer);pollTimer=setInterval(()=>{loadTasks();loadContexts()},5000)}
 
-  let browserContent='';
-  if(isRunning&&bu){browserContent=`<iframe class="browser-iframe" src="${bu}" allow="clipboard-read; clipboard-write"></iframe>`;_lastBrowserUrl=bu}
-  else if(isDone&&items.length){browserContent=`<div class="result-output">${_renderResultOutput(t)}</div>`;_lastBrowserUrl=null}
-  else{browserContent=`<div class="browser-placeholder"><span>${isRunning?'等待浏览器启动...':'任务未运行'}</span></div>`;_lastBrowserUrl=null}
-
-  let resultsHtml='';
-  if(items.length){
-    for(const item of items){
-      resultsHtml+=`<div class="result-card"><div class="result-card-title">${esc(item.title||item.name||'-')}</div>${item.price?`<div class="result-card-price">${esc(item.price)}</div>`:''}<div class="result-card-meta">${item.author||item.shop_name||item.seller?`<span>${esc(item.author||item.shop_name||item.seller)}</span>`:''}${item.url||item.link?`<a href="${esc(item.url||item.link)}" target="_blank">链接</a>`:''}</div></div>`;
-    }
-  }else resultsHtml=isDone&&t.result?'<div class="result-empty">任务完成</div>':'<div class="result-empty">等待任务执行...</div>';
-
-  let logsHtml='';
-  for(const l of logs){const isR=l.status==='running';logsHtml+=`<div class="log-item"><span class="log-num log-num-${l.status}">${isR?'<span class="spinner spinner-sm" style="border-top-color:currentColor"></span>':l.step}</span><span class="log-label">${esc(l.name)}</span><span class="log-time">${l.timestamp||''}</span></div>`}
-
-  root.innerHTML=`<div class="monitor-center">
-    <div class="monitor-bar">
-      <div class="monitor-bar-left"><span class="monitor-bar-name">${esc(t.task_type)}</span>${statusTag(t.status)}<div class="monitor-bar-progress"><div class="monitor-bar-progress-bar"><div class="monitor-bar-progress-fill" style="width:${t.progress}%"></div></div><span class="monitor-bar-progress-text">${t.progress}%</span></div></div>
-      <div class="monitor-bar-right"><button class="btn btn-danger btn-xs" id="cancelBtn" style="display:${isRunning?'':'none'}" onclick="cancelTask()"><span class="btn-spinner"></span><span class="btn-label">取消任务</span></button></div>
-    </div>
-    <div class="monitor-browser">${browserContent}</div>
-  </div>
-  <div class="monitor-right">
-    <div class="logs-section">
-      <div class="section-header">执行日志</div>
-      <div class="logs-body">${logsHtml||'<div style="padding:14px;color:var(--tx-3);font-size:10px;text-align:center;font-family:var(--f-mono)">暂无日志</div>'}</div>
-    </div>
-    <div class="results-section">
-      <div class="section-header"><span>结果</span><div style="display:flex;align-items:center;gap:6px"><span class="results-count">${items.length?items.length+' 条':''}</span><a class="result-link result-download" href="${t.result?.output_url||'#'}" target="_blank" style="display:${t.result?.output_url?'':'none'}">下载</a></div></div>
-      <div class="results-grid">${resultsHtml}</div>
-    </div>
-  </div>`;
-}
-
-function startPolling(){
-  if(pollTimer)clearInterval(pollTimer);
-  pollTimer=setInterval(()=>{loadTasks();loadContexts();if(currentMonitorTaskId)renderMonitor()},5000);
-}
-
-if(apiKey){
-  document.getElementById('contextList').innerHTML='<div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div>';
-  document.getElementById('taskList').innerHTML='<div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div>';
-  loadContexts();loadTasks();startPolling();
-}
+if(apiKey){loadContexts();loadTasks();startPolling()}
 </script>
 </body>
 </html>

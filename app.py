@@ -41,6 +41,7 @@ def create_app() -> Sanic:
     register_routes(app)
     setup_database(app)
     setup_playwright(app)
+    setup_task_scheduler(app)
 
     return app
 
@@ -51,10 +52,11 @@ def register_routes(app: Sanic):
         return {"status": "ok", "service": "micro-sniper"}
 
     from api.routes.contexts import contexts_bp
-    from api.routes.sniper import sniper_bp
+    from api.routes.sniper import products_bp, sniper_bp
 
     app.blueprint(contexts_bp)
     app.blueprint(sniper_bp)
+    app.blueprint(products_bp)
 
 
 def setup_database(app: Sanic):
@@ -62,6 +64,7 @@ def setup_database(app: Sanic):
     async def create_db(app: Sanic):
         await Tortoise.init(config=create_db_config())
         await Tortoise.generate_schemas()
+        await ensure_runtime_schema()
         logger.info("Database initialized")
         await cleanup_startup_resources()
 
@@ -69,6 +72,17 @@ def setup_database(app: Sanic):
     async def close_db(app: Sanic):
         await Tortoise.close_connections()
         logger.info("Database connections closed")
+
+
+async def ensure_runtime_schema():
+    """补齐旧库缺失字段；generate_schemas 不会修改已存在的表。"""
+    conn = Tortoise.get_connection("default")
+    await conn.execute_script(
+        """
+        ALTER TABLE tasks ADD COLUMN IF NOT EXISTS schedule VARCHAR(100) NOT NULL DEFAULT '';
+        ALTER TABLE tasks ADD COLUMN IF NOT EXISTS last_run_at TIMESTAMP NULL;
+        """
+    )
 
 
 def setup_playwright(app: Sanic):
@@ -84,6 +98,26 @@ def setup_playwright(app: Sanic):
         if hasattr(app.ctx, 'playwright'):
             await app.ctx.playwright.stop()
             logger.info("Playwright cleaned up")
+
+
+def setup_task_scheduler(app: Sanic):
+    @app.before_server_start
+    async def start_task_scheduler(app: Sanic):
+        from services.task_scheduler import scheduled_task_loop
+
+        app.ctx.schedule_timer_task = asyncio.create_task(scheduled_task_loop())
+        logger.info("Task scheduler timer started")
+
+    @app.before_server_stop
+    async def stop_task_scheduler(app: Sanic):
+        scheduler_task = getattr(app.ctx, "schedule_timer_task", None)
+        if scheduler_task:
+            scheduler_task.cancel()
+            try:
+                await scheduler_task
+            except asyncio.CancelledError:
+                pass
+            logger.info("Task scheduler timer stopped")
 
 
 async def cleanup_startup_resources():
