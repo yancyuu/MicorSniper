@@ -138,7 +138,6 @@ async def start_login(request: Request, context_id: str):
 
     from agentbay import AsyncAgentBay
     from config.settings import global_settings
-    from services.sniper.connectors.base import BaseConnector
 
     agent_bay = AsyncAgentBay(api_key=global_settings.agentbay.api_key)
 
@@ -164,28 +163,9 @@ async def start_login(request: Request, context_id: str):
     session = session_result.session
 
     try:
-        ok = await session.browser.initialize(
-            BrowserOption(
-                screen=BrowserScreen(width=1920, height=1080),
-                solve_captchas=True,
-                use_stealth=True,
-                fingerprint=BrowserFingerprint(
-                    devices=["desktop"],
-                    operating_systems=["windows"],
-                    locales=["zh-CN"],
-                ),
-            )
-        )
-        if not ok:
-            await agent_bay.delete(session, sync_context=False)
-            return json({"success": False, "error": "Failed to initialize browser"}, status=500)
-
-        # 导航到目标网址
         target_url = ctx.target_url or f"https://www.{ctx.platform}.com"
         if not target_url.startswith("http"):
             target_url = f"https://{target_url}"
-        await session.browser.agent.navigate(target_url)
-        await asyncio.sleep(2)
 
         browser_url = session.resource_url
 
@@ -197,6 +177,8 @@ async def start_login(request: Request, context_id: str):
             300,
             f"{session.session_id}|{context_result.context.id}|{context_key}"
         )
+
+        asyncio.create_task(_initialize_login_browser(agent_bay, session, target_url, context_id))
 
         return json({
             "success": True,
@@ -213,6 +195,40 @@ async def start_login(request: Request, context_id: str):
         except:
             pass
         return json({"success": False, "error": str(e)}, status=500)
+
+
+async def _initialize_login_browser(agent_bay, session, target_url: str, context_id: str):
+    """后台初始化云浏览器，避免登录弹窗等待完整导航流程。"""
+    try:
+        ok = await session.browser.initialize(
+            BrowserOption(
+                screen=BrowserScreen(width=1920, height=1080),
+                solve_captchas=True,
+                use_stealth=True,
+                fingerprint=BrowserFingerprint(
+                    devices=["desktop"],
+                    operating_systems=["windows"],
+                    locales=["zh-CN"],
+                ),
+            )
+        )
+        if not ok:
+            raise RuntimeError("Failed to initialize browser")
+
+        await session.browser.agent.navigate(target_url)
+        await asyncio.sleep(2)
+    except Exception as e:
+        logger.error(f"Failed to initialize login browser: {e}")
+        try:
+            from utils.cache import get_redis
+            redis = await get_redis()
+            await redis.delete(f"login_session:{context_id}")
+        except Exception as redis_error:
+            logger.warning(f"Failed to cleanup login session cache: {redis_error}")
+        try:
+            await agent_bay.delete(session, sync_context=False)
+        except Exception as cleanup_error:
+            logger.warning(f"Failed to cleanup login browser session: {cleanup_error}")
 
 
 @contexts_bp.get("/<context_id:str>/cookies")
@@ -349,21 +365,20 @@ async def confirm_login(request: Request, context_id: str):
 
         # 先关闭浏览器，让 cookies 从内存刷到磁盘
         try:
-            from sanic import Sanic
-            app = Sanic.get_app()
-            pw = app.ctx.playwright
-
-            await session.browser.initialize()
             endpoint_url = await session.browser.get_endpoint_url()
-            browser = await pw.chromium.connect_over_cdp(endpoint_url)
-            try:
-                cdp = await browser.new_browser_cdp_session()
-                await cdp.send('Browser.close')
-                await asyncio.sleep(1)
-            except:
-                pass
-            await browser.close()
-            logger.info(f"Browser closed, cookies flushed to disk")
+            if endpoint_url:
+                from sanic import Sanic
+                app = Sanic.get_app()
+                pw = app.ctx.playwright
+                browser = await pw.chromium.connect_over_cdp(endpoint_url)
+                try:
+                    cdp = await browser.new_browser_cdp_session()
+                    await cdp.send('Browser.close')
+                    await asyncio.sleep(1)
+                except:
+                    pass
+                await browser.close()
+                logger.info(f"Browser closed, cookies flushed to disk")
         except Exception as e:
             logger.warning(f"Failed to close browser before sync: {e}")
 

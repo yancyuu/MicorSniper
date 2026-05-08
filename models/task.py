@@ -58,6 +58,10 @@ class Task(Model):
     started_at = DatetimeField(null=True, description="开始时间")
     completed_at = DatetimeField(null=True, description="完成时间")
 
+    # 定时任务
+    schedule = CharField(100, default="", description="定时规则（秒数或cron表达式）")
+    last_run_at = DatetimeField(null=True, description="上次执行时间")
+
     class Meta:
         table = "tasks"
         indexes = [
@@ -164,14 +168,7 @@ class Task(Model):
 
     async def log_step(self, step: int, name: str, input_data: dict, output_data: dict, status: str = "completed"):
         """
-        记录一步执行
-
-        Args:
-            step: 步骤编号
-            name: 步骤名称
-            input_data: 输入数据
-            output_data: 输出数据
-            status: 步骤状态
+        记录一步执行。如果同 step 已存在则更新，否则追加。
         """
         log_entry = {
             "step": step,
@@ -181,8 +178,35 @@ class Task(Model):
             "output": output_data,
             "status": status
         }
+        for i, existing in enumerate(self.logs):
+            if existing.get("step") == step:
+                self.logs[i] = log_entry
+                await self.save()
+                return
         self.logs.append(log_entry)
         await self.save()
+
+    # ===== 商品链接查询 =====
+
+    async def get_links(self, offset: int = 0, limit: int = 100, platform: str = None, keyword: str = None):
+        """分页查询任务采集的商品链接"""
+        from models.product_link import ProductLink
+        query = ProductLink.filter(task_id=self.id)
+        if platform:
+            query = query.filter(platform=platform)
+        if keyword:
+            query = query.filter(keyword=keyword)
+        total = await query.count()
+        items = await query.order_by("created_at").offset(offset).limit(limit)
+        return {
+            "items": [item.to_dict() for item in items],
+            "total": total,
+        }
+
+    async def get_link_count(self) -> int:
+        """获取链接总数"""
+        from models.product_link import ProductLink
+        return await ProductLink.filter(task_id=self.id).count()
 
     # ===== AI 可读格式转换 =====
 
@@ -228,9 +252,11 @@ class Task(Model):
             "browser_url": self.browser_url,
             "screenshot_url": self.screenshot_url,
             "summary": "\n".join(summary_parts),
-            "logs": self.logs,
             "result": self.result,
             "error": self.error,
+            "logs": self.logs,
+            "schedule": self.schedule,
+            "last_run_at": self.last_run_at.isoformat() if self.last_run_at else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "started_at": self.started_at.isoformat() if self.started_at else None,
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,
