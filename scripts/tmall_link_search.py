@@ -24,7 +24,7 @@ from agentbay import (
 from config.settings import global_settings
 from models.context import BrowserContext
 from models.task import Task, TaskStatus
-from models.product_link import ProductLink
+from models.product_link import ProductLink, ProductLinkMonitorStatus, ProductLinkSourceType
 from utils.logger import logger
 
 
@@ -295,6 +295,8 @@ async def run_tmall_link_search(task: Task, ctx: BrowserContext) -> dict[str, An
                             shop_name=item.get("shop", ""),
                             image=item.get("image", ""),
                             main_images=[item["image"]] if item.get("image") else [],
+                            source_type=ProductLinkSourceType.KEYWORD_SEARCH.value,
+                            monitor_status=ProductLinkMonitorStatus.CANDIDATE.value,
                         )
                         for item in page_items
                     ])

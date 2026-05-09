@@ -13,6 +13,7 @@ class ContextStatus(str, Enum):
     PENDING = "pending"          # 未登录
     LOGGED_IN = "logged_in"      # 已登录
     IN_USE = "in_use"            # 使用中
+    DISABLED = "disabled"        # 禁用，不参与任务分配
 
 
 class BrowserContext(Model):

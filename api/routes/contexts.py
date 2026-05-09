@@ -93,9 +93,16 @@ async def update_context(request: Request, context_id: str):
 
     if "name" in data:
         ctx.name = data["name"]
+    if "status" in data:
+        status = data["status"]
+        if status not in [ContextStatus.PENDING.value, ContextStatus.LOGGED_IN.value, ContextStatus.DISABLED.value]:
+            return json({"success": False, "error": "Invalid status"}, status=400)
+        if ctx.status == ContextStatus.IN_USE.value:
+            return json({"success": False, "error": "Context is in use"}, status=400)
+        ctx.status = status
     await ctx.save()
 
-    return json({"success": True, "data": {"id": str(ctx.id), "name": ctx.name}})
+    return json({"success": True, "data": {"id": str(ctx.id), "name": ctx.name, "status": ctx.status}})
 
 
 @contexts_bp.delete("/<context_id:str>")

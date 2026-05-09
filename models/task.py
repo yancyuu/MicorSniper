@@ -61,6 +61,7 @@ class Task(Model):
     # 定时任务
     schedule = CharField(100, default="", description="定时规则（秒数或cron表达式）")
     last_run_at = DatetimeField(null=True, description="上次执行时间")
+    not_before_at = DatetimeField(null=True, description="最早启动时间，用于分批延迟任务")
 
     class Meta:
         table = "tasks"
@@ -72,10 +73,18 @@ class Task(Model):
 
     # ===== 任务状态管理方法 =====
 
+    def _normalize_datetime_fields(self):
+        """项目使用无时区时间；避免旧数据中的 aware datetime 保存时报错。"""
+        for field in ["started_at", "completed_at", "last_run_at", "not_before_at"]:
+            value = getattr(self, field, None)
+            if value is not None and getattr(value, "tzinfo", None) is not None:
+                setattr(self, field, value.replace(tzinfo=None))
+
     async def start(self):
         """开始执行任务"""
         self.status = TaskStatus.RUNNING
         self.started_at = datetime.now()
+        self._normalize_datetime_fields()
         await self.save()
 
 
@@ -109,6 +118,7 @@ class Task(Model):
             status="pending"
         )
 
+        self._normalize_datetime_fields()
         await self.save()
 
     async def complete(self, result_data: dict = None):
@@ -147,6 +157,7 @@ class Task(Model):
                     logger.error(f"上传任务结果到OSS失败: {e}")
 
             self.result = result_data
+        self._normalize_datetime_fields()
         await self.save()
 
     async def fail(self, error_msg: str, current_progress: int = None):
@@ -156,12 +167,15 @@ class Task(Model):
         self.error = error_msg
         if current_progress is not None:
             self.progress = current_progress
+        self._normalize_datetime_fields()
         await self.save()
 
     async def cancel(self):
         """取消任务"""
         self.status = TaskStatus.CANCELLED
         self.completed_at = datetime.now()
+        self.not_before_at = None
+        self._normalize_datetime_fields()
         await self.save()
 
     # ===== 日志管理方法 =====
@@ -181,9 +195,11 @@ class Task(Model):
         for i, existing in enumerate(self.logs):
             if existing.get("step") == step:
                 self.logs[i] = log_entry
+                self._normalize_datetime_fields()
                 await self.save()
                 return
         self.logs.append(log_entry)
+        self._normalize_datetime_fields()
         await self.save()
 
     # ===== 商品链接查询 =====
@@ -253,10 +269,12 @@ class Task(Model):
             "screenshot_url": self.screenshot_url,
             "summary": "\n".join(summary_parts),
             "result": self.result,
+            "params": self.params,
             "error": self.error,
             "logs": self.logs,
             "schedule": self.schedule,
             "last_run_at": self.last_run_at.isoformat() if self.last_run_at else None,
+            "not_before_at": self.not_before_at.isoformat() if self.not_before_at else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "started_at": self.started_at.isoformat() if self.started_at else None,
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,

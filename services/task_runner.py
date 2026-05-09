@@ -96,6 +96,9 @@ async def _run_task_with_context(task_id: str, ctx_id: str, runner: TaskRunner) 
     try:
         await task.start()
         result = await runner(task, ctx)
+        task = await Task.get(id=task_id)
+        if task.status == TaskStatus.PENDING.value and task.not_before_at:
+            return
         if task.status not in [
             TaskStatus.FAILED.value,
             TaskStatus.CANCELLED.value,
@@ -114,6 +117,7 @@ async def _run_task_with_context(task_id: str, ctx_id: str, runner: TaskRunner) 
         task = await Task.get(id=task_id)
         if task.schedule:
             task.last_run_at = now
+        task._normalize_datetime_fields()
         await task.save()
 
         ctx.status = ContextStatus.LOGGED_IN.value

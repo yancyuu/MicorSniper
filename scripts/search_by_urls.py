@@ -6,6 +6,7 @@
 """
 
 import asyncio
+from datetime import datetime, timedelta
 from typing import Any
 from urllib.parse import urlparse
 
@@ -21,7 +22,7 @@ from agentbay import (
 
 from config.settings import global_settings
 from models.context import BrowserContext
-from models.product_link import ProductLink
+from models.product_link import ProductLink, ProductLinkMonitorStatus
 from models.task import Task, TaskStatus
 from utils.logger import logger
 
@@ -215,14 +216,37 @@ async def run_search_by_urls(task: Task, ctx: BrowserContext) -> dict[str, Any] 
     urls = _normalize_urls(params.get("urls", []))
 
     if not urls:
-        # 没传 urls 就从来源任务或当前任务关联的 ProductLink 里取
         source_task_id = params.get("source_task_id") or params.get("task_id") or task.id
-        links = await ProductLink.filter(task_id=source_task_id)
+        retry_missing = bool(params.get("retry_missing"))
+        if params.get("source_task_id") or params.get("task_id"):
+            query = ProductLink.filter(task_id=source_task_id)
+        else:
+            query = ProductLink.filter(monitor_status=ProductLinkMonitorStatus.MONITORED.value)
+        platforms = params.get("platforms") or []
+        if isinstance(platforms, str):
+            platforms = [platforms]
+        if platforms:
+            query = query.filter(platform__in=platforms)
+        if retry_missing:
+            query = query.filter(price="")
+        links = await query.order_by("created_at")
         urls = [l.url for l in links]
 
     if not urls:
         await task.fail("No URLs provided")
         return None
+
+    all_urls = list(urls)
+    batch_size = int(params.get("batch_size") or len(all_urls))
+    current_offset = int(params.get("current_offset") or 0)
+    batch_index = int(params.get("batch_index") or 1)
+    interval_minutes = int(params.get("batch_interval_minutes") or 0)
+    urls = all_urls[current_offset : current_offset + batch_size]
+    if not urls:
+        await task.complete({"total": 0, "updated": 0, "failed": 0, "message": "No remaining URLs"})
+        return None
+    task.not_before_at = None
+    await task.save()
 
     if not ctx.context_id:
         await task.fail("Context has no context_id")
@@ -274,12 +298,23 @@ async def run_search_by_urls(task: Task, ctx: BrowserContext) -> dict[str, Any] 
 
         agent = session.browser.agent
         results = []
+        total = len(urls)
+        await task.log_step(1, "创建浏览器会话", {}, {"status": "ok"}, "completed")
+        await task.log_step(
+            2,
+            f"执行第 {batch_index} 批轻量价格监控",
+            {"offset": current_offset, "batch_size": batch_size, "total_urls": len(all_urls)},
+            {},
+            "running",
+        )
 
         for i, url in enumerate(urls):
             if task.status == TaskStatus.CANCELLED.value:
                 break
 
+            step = i + 3
             try:
+                await task.log_step(step, f"轻量检查商品价格 {i + 1}/{total}", {"url": url}, {}, "running")
                 await agent.navigate(url)
                 await asyncio.sleep(5)
 
@@ -289,6 +324,7 @@ async def run_search_by_urls(task: Task, ctx: BrowserContext) -> dict[str, Any] 
                         page = p
                         break
                 if not page:
+                    await task.log_step(step, f"轻量检查失败 {i + 1}/{total}", {"url": url}, {"error": "no active page"}, "failed")
                     continue
 
                 # 先按 URL 分流渠道；页面跳转后再用页面 host 兜底校正。
@@ -302,7 +338,7 @@ async def run_search_by_urls(task: Task, ctx: BrowserContext) -> dict[str, Any] 
                 price = product.get("price", "")
 
                 # 更新 ProductLink
-                update_data = {"platform": platform}
+                update_data = {"task_id": task.id, "platform": platform}
                 for field in ["price", "title", "shop_name", "sales", "image"]:
                     value = product.get(field)
                     if value:
@@ -324,15 +360,62 @@ async def run_search_by_urls(task: Task, ctx: BrowserContext) -> dict[str, Any] 
 
                 results.append({"url": url, "platform": platform, "updated": updated > 0, **product})
                 logger.info(f"[search_by_urls] {i + 1}/{len(urls)} {platform} price={price} url={url[:60]}")
+                await task.log_step(
+                    step,
+                    f"完成轻量价格检查 {i + 1}/{total}",
+                    {"url": url, "platform": platform},
+                    {
+                        "title": product.get("title", "")[:80],
+                        "price": product.get("price", ""),
+                        "shop_name": product.get("shop_name", ""),
+                    },
+                    "completed",
+                )
+                task.progress = int((i + 1) / total * 100)
+                await task.save()
 
             except Exception as e:
                 logger.warning(f"[search_by_urls] failed {url[:60]}: {e}")
                 results.append({"url": url, "price": "", "error": str(e)})
+                await ProductLink.filter(url=url).update(monitor_status=ProductLinkMonitorStatus.INVALID.value)
+                await task.log_step(step, f"轻量检查失败 {i + 1}/{total}", {"url": url}, {"error": str(e)}, "failed")
+            finally:
+                task.progress = int((i + 1) / total * 100)
+                await task.save()
 
-        await task.log_step(1, f"按 URL 检索完成: {len(results)} 条", {}, {"checked": len(results)}, "completed")
+        next_offset = current_offset + len(urls)
+        has_more = next_offset < len(all_urls)
+        if has_more and interval_minutes > 0:
+            params["current_offset"] = next_offset
+            params["batch_index"] = batch_index + 1
+            task.params = params
+            task.not_before_at = datetime.now() + timedelta(minutes=interval_minutes)
+            task.status = TaskStatus.PENDING.value
+            task.progress = int(next_offset / len(all_urls) * 100)
+            await task.log_step(
+                total + 3,
+                f"第 {batch_index} 批完成，等待下次执行",
+                {},
+                {"checked": len(results), "next_offset": next_offset, "remaining": len(all_urls) - next_offset},
+                "completed",
+            )
+            await task.save()
+            return {
+                "total": next_offset,
+                "updated": sum(1 for r in results if r.get("updated")),
+                "failed": sum(1 for r in results if r.get("error")),
+                "results": results,
+                "queued_next": True,
+            }
+
+        params["current_offset"] = current_offset + len(results)
+        task.params = params
+        task.not_before_at = None
+        await task.save()
+        await task.log_step(total + 3, f"轻量价格监控完成: {current_offset + len(results)} 条", {}, {"checked": len(results)}, "completed")
 
         return {
-            "total": len(results),
+            "total": current_offset + len(results),
             "updated": sum(1 for r in results if r.get("updated")),
             "failed": sum(1 for r in results if r.get("error")),
             "results": results,

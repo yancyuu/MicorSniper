@@ -6,89 +6,68 @@ from sanic.response import json
 
 from models.task import Task, TaskStatus
 from models.context import BrowserContext, ContextStatus
-from models.product_link import ProductLink
+from models.product_detail import ProductDetail
+from models.product_link import ProductLink, ProductLinkMonitorStatus, ProductLinkSourceType
 from services.task_runner import cancel_running_task, dispatch_task
+from services.sniper_tasks import (
+    ServiceError,
+    create_ecommerce_link_monitor_business_task as create_ecommerce_link_monitor_business_task_service,
+    create_keyword_search_business_task as create_keyword_search_business_task_service,
+    create_task as create_task_service,
+    import_products as import_products_service,
+)
 
 sniper_bp = Blueprint("sniper", url_prefix="/api/tasks")
 products_bp = Blueprint("products", url_prefix="/api/products")
 
 
-def _normalize_schedule(raw_schedule) -> str:
-    """归一化定时规则。当前只支持空值、预设名和秒数。"""
-    if raw_schedule is None:
-        return ""
-    schedule = str(raw_schedule).strip()
-    if not schedule:
-        return ""
-    aliases = {
-        "hourly": "3600",
-        "every_hour": "3600",
-        "every_5_hours": "18000",
-        "daily": "86400",
-    }
-    schedule = aliases.get(schedule, schedule)
-    if not schedule.isdigit() or int(schedule) <= 0:
-        raise ValueError("schedule must be empty or positive seconds")
-    return schedule
+async def _merge_product_details(links: list[ProductLink]) -> list[dict]:
+    if not links:
+        return []
+    urls = [item.url for item in links]
+    details = await ProductDetail.filter(url__in=urls)
+    detail_map = {item.url: item.to_dict() for item in details}
+    result = []
+    for link in links:
+        data = link.to_dict()
+        detail = detail_map.get(link.url)
+        if detail:
+            data.update({k: v for k, v in detail.items() if k not in {"id", "task_id", "created_at"}})
+            data["detail_id"] = detail["id"]
+            data["detail_task_id"] = detail["task_id"]
+            data["detail_updated_at"] = detail.get("updated_at")
+        result.append(data)
+    return result
 
 
 @sniper_bp.post("/")
 async def create_task(request: Request):
     """创建任务"""
-    data = request.json or {}
-    task_type = data.get("task_type")
-    context_id = data.get("context_id")
-    params = data.get("params", {})
     try:
-        schedule = _normalize_schedule(data.get("schedule") or params.get("schedule"))
-    except ValueError as e:
-        return json({"success": False, "error": str(e)}, status=400)
+        data = await create_task_service(request.json or {})
+    except ServiceError as e:
+        return json(e.payload, status=e.status)
+    return json({"success": True, "data": data})
 
-    if not task_type:
-        return json({"success": False, "error": "task_type is required"}, status=400)
 
-    # 检查上下文（如果需要）
-    if context_id:
-        claimed = await BrowserContext.filter(
-            id=context_id,
-            status=ContextStatus.LOGGED_IN.value,
-        ).update(status=ContextStatus.IN_USE.value)
-        if not claimed:
-            exists = await BrowserContext.filter(id=context_id).first()
-            if not exists:
-                return json({"success": False, "error": "Context not found"}, status=404)
-            return json({"success": False, "error": f"Context status is {exists.status}, expected logged_in"}, status=400)
-        ctx = await BrowserContext.get(id=context_id)
+@sniper_bp.post("/business/keyword-search")
+async def create_keyword_search_business_task(request: Request):
+    """业务任务：选择关键词和平台，自动校验上下文并拆分平台搜索任务。"""
+    try:
+        data = await create_keyword_search_business_task_service(request.json or {})
+    except ServiceError as e:
+        return json(e.payload, status=e.status)
+    return json({"success": True, "data": data})
 
-    task = await Task.create(
-        source="api",
-        source_id="default",
-        task_type=task_type,
-        context_id=context_id,
-        params=params,
-        schedule=schedule,
-    )
 
-    # 如果有上下文，后台执行任务
-    if context_id:
-        try:
-            await dispatch_task(task, ctx)
-        except ValueError as e:
-            ctx.status = ContextStatus.LOGGED_IN.value
-            await ctx.save()
-            await task.fail(str(e))
-            return json({"success": False, "error": str(e)}, status=400)
-
-    return json({
-        "success": True,
-        "data": {
-            "task_id": str(task.id),
-            "task_type": task_type,
-            "context_id": context_id,
-            "status": task.status,
-            "schedule": task.schedule,
-        }
-    })
+@sniper_bp.post("/business/ecommerce-link-monitor")
+async def create_ecommerce_link_monitor_business_task(request: Request):
+    """业务任务：导入电商链接，按平台分组并自动拆分详情监控任务。"""
+    try:
+        data = await create_ecommerce_link_monitor_business_task_service(request.json or {})
+    except ServiceError as e:
+        return json(e.payload, status=e.status)
+    return json({"success": True, "data": data})
 
 
 @sniper_bp.get("/")
@@ -173,6 +152,10 @@ async def retry_task(request: Request, task_id: str):
     ctx = await BrowserContext.get(id=task.context_id)
 
     try:
+        params = task.params or {}
+        params["retry_missing"] = True
+        task.params = params
+        await task.save()
         await dispatch_task(task, ctx, reset=True, clear_logs=True)
     except ValueError as e:
         ctx.status = ContextStatus.LOGGED_IN.value
@@ -237,7 +220,7 @@ async def get_results(request: Request, task_id: str):
     return json({
         "success": True,
         "data": {
-            "items": [item.to_dict() for item in items],
+            "items": await _merge_product_details(items),
             "total": total,
             "offset": offset,
             "limit": limit,
@@ -254,6 +237,8 @@ async def list_products(request: Request):
     platform = request.args.get("platform")
     keyword = request.args.get("keyword")
     task_id = request.args.get("task_id")
+    monitor_status = request.args.get("monitor_status")
+    sort = request.args.get("sort") or "-created_at"
 
     query = ProductLink.all()
     if platform:
@@ -262,19 +247,75 @@ async def list_products(request: Request):
         query = query.filter(keyword__icontains=keyword)
     if task_id:
         query = query.filter(task_id=task_id)
+    if monitor_status:
+        query = query.filter(monitor_status=monitor_status)
 
     total = await query.count()
-    items = await query.order_by("-created_at").offset(offset).limit(limit)
+    if sort == "sales_desc":
+        all_items = await query
+
+        def sales_value(item: ProductLink) -> float:
+            raw = item.sales or ""
+            number = "".join(ch for ch in raw if ch.isdigit() or ch == ".")
+            value = float(number or 0)
+            return value * 10000 if "万" in raw else value
+
+        items = sorted(all_items, key=sales_value, reverse=True)[offset : offset + limit]
+    elif sort == "price_asc":
+        items = await query.order_by("price", "-created_at").offset(offset).limit(limit)
+    elif sort == "price_desc":
+        items = await query.order_by("-price", "-created_at").offset(offset).limit(limit)
+    else:
+        order_field = sort if sort in ["created_at", "-created_at"] else "-created_at"
+        items = await query.order_by(order_field).offset(offset).limit(limit)
+    global_total = await ProductLink.all().count()
+    candidate_total = await ProductLink.filter(monitor_status=ProductLinkMonitorStatus.CANDIDATE.value).count()
+    monitored_total = await ProductLink.filter(monitor_status=ProductLinkMonitorStatus.MONITORED.value).count()
+    invalid_total = await ProductLink.filter(monitor_status=ProductLinkMonitorStatus.INVALID.value).count()
+    keyword_total = await ProductLink.filter(source_type=ProductLinkSourceType.KEYWORD_SEARCH.value).count()
 
     return json({
         "success": True,
         "data": {
-            "items": [item.to_dict() for item in items],
+            "items": await _merge_product_details(items),
             "total": total,
             "offset": offset,
             "limit": limit,
+            "stats": {
+                "total": global_total,
+                "candidate": candidate_total,
+                "monitored": monitored_total,
+                "invalid": invalid_total,
+                "keyword_search": keyword_total,
+            },
         }
     })
+
+
+@products_bp.post("/import")
+async def import_products(request: Request):
+    """导入外部链接表到商品链接库，并返回本批导入任务 ID。"""
+    try:
+        data = await import_products_service(request.json or {})
+    except ServiceError as e:
+        return json(e.payload, status=e.status)
+    return json({"success": True, "data": data})
+
+
+@products_bp.patch("/<link_id:str>/monitor-status")
+async def update_product_monitor_status(request: Request, link_id: str):
+    """更新链接监控状态。"""
+    data = request.json or {}
+    status = data.get("monitor_status")
+    allowed = {item.value for item in ProductLinkMonitorStatus}
+    if status not in allowed:
+        return json({"success": False, "error": "Invalid monitor_status"}, status=400)
+
+    updated = await ProductLink.filter(id=link_id).update(monitor_status=status)
+    if not updated:
+        return json({"success": False, "error": "Product link not found"}, status=404)
+    link = await ProductLink.get(id=link_id)
+    return json({"success": True, "data": link.to_dict()})
 
 
 @sniper_bp.get("/<task_id:str>/results/download")
@@ -296,7 +337,12 @@ async def download_results(request: Request, task_id: str):
         query = query.filter(keyword=keyword)
 
     items = await query.order_by("created_at")
-    data = json_mod.dumps([item.to_dict() for item in items], ensure_ascii=False, indent=2)
+    if items:
+        payload = await _merge_product_details(items)
+    else:
+        result = task.result if isinstance(task.result, dict) else {}
+        payload = result.get("results") or result.get("items") or []
+    data = json_mod.dumps(payload, ensure_ascii=False, indent=2)
 
     filename = f"{task.task_type}_{task_id[:8]}.json"
     return raw(

@@ -82,6 +82,7 @@ class RedisConfig(BaseModel):
 class TaskConfig(BaseModel):
     """任务配置"""
     timeout: int = Field(default=60*10, description="任务超时时间（秒）")
+    max_concurrent_sessions: int = Field(default=10, description="最大并发浏览器 session 数")
 # ==================================
 # 全局设置
 # ==================================
@@ -143,6 +144,7 @@ def create_db_config():
                     "models.context",
                     "models.task",
                     "models.product_link",
+                    "models.product_detail",
                 ],
                 "default_connection": "default"
             }

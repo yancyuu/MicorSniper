@@ -81,6 +81,10 @@ async def ensure_runtime_schema():
         """
         ALTER TABLE tasks ADD COLUMN IF NOT EXISTS schedule VARCHAR(100) NOT NULL DEFAULT '';
         ALTER TABLE tasks ADD COLUMN IF NOT EXISTS last_run_at TIMESTAMP NULL;
+        ALTER TABLE tasks ADD COLUMN IF NOT EXISTS not_before_at TIMESTAMP NULL;
+        ALTER TABLE product_links ADD COLUMN IF NOT EXISTS source_type VARCHAR(50) NOT NULL DEFAULT 'keyword_search';
+        ALTER TABLE product_links ADD COLUMN IF NOT EXISTS monitor_status VARCHAR(50) NOT NULL DEFAULT 'candidate';
+        ALTER TABLE product_links ADD COLUMN IF NOT EXISTS tags JSONB NOT NULL DEFAULT '[]'::jsonb;
         """
     )
 

@@ -2,10 +2,25 @@
 """商品链接模型 - 独立存储每条采集到的商品链接，结构化字段便于查询和同步"""
 
 import uuid
+from enum import Enum
+
 from tortoise.models import Model
 from tortoise.fields import (
     CharField, IntField, DatetimeField, TextField, UUIDField, JSONField,
 )
+
+
+class ProductLinkSourceType(str, Enum):
+    KEYWORD_SEARCH = "keyword_search"
+    CSV_IMPORT = "csv_import"
+    MANUAL = "manual"
+
+
+class ProductLinkMonitorStatus(str, Enum):
+    CANDIDATE = "candidate"
+    MONITORED = "monitored"
+    IGNORED = "ignored"
+    INVALID = "invalid"
 
 
 class ProductLink(Model):
@@ -24,6 +39,17 @@ class ProductLink(Model):
     platform = CharField(50, description="采集渠道：taobao, xiaohongshu 等")
     keyword = CharField(200, default="", description="搜索关键词")
     page = IntField(default=0, description="采集页码")
+    source_type = CharField(
+        50,
+        default=ProductLinkSourceType.KEYWORD_SEARCH.value,
+        description="链接来源：keyword_search, csv_import, manual",
+    )
+    monitor_status = CharField(
+        50,
+        default=ProductLinkMonitorStatus.CANDIDATE.value,
+        description="监控状态：candidate, monitored, ignored, invalid",
+    )
+    tags = JSONField(default=list, description="标签缓存，可由飞书同步")
 
     # 商品基本信息
     url = TextField(description="商品链接（标准化后的）")
@@ -58,6 +84,8 @@ class ProductLink(Model):
             ("task_id",),
             ("platform",),
             ("keyword",),
+            ("source_type",),
+            ("monitor_status",),
             ("synced",),
         ]
 
@@ -70,7 +98,22 @@ class ProductLink(Model):
         existing = await cls.filter(url__in=urls)
         existing_map = {l.url: l for l in existing}
 
-        update_fields = ["task_id", "title", "price", "sales", "shop_name", "image", "main_images", "keyword", "page", "raw_url"]
+        update_fields = [
+            "task_id",
+            "platform",
+            "title",
+            "price",
+            "sales",
+            "shop_name",
+            "image",
+            "main_images",
+            "keyword",
+            "page",
+            "raw_url",
+            "source_type",
+            "monitor_status",
+            "tags",
+        ]
         to_create = []
         to_update = []
         for link in links:
@@ -96,6 +139,9 @@ class ProductLink(Model):
             "platform": self.platform,
             "keyword": self.keyword,
             "page": self.page,
+            "source_type": self.source_type,
+            "monitor_status": self.monitor_status,
+            "tags": self.tags,
             "url": self.url,
             "raw_url": self.raw_url,
             "title": self.title,

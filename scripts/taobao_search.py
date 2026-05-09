@@ -15,7 +15,8 @@ from agentbay import (
 from config.settings import global_settings
 from models.task import Task
 from models.context import BrowserContext
-from models.product_link import ProductLink
+from models.product_detail import ProductDetail
+from models.product_link import ProductLink, ProductLinkMonitorStatus, ProductLinkSourceType
 from utils.logger import logger
 
 
@@ -320,13 +321,6 @@ async def run_taobao_search(task: Task, ctx: BrowserContext):
                 for j, link in enumerate(search_links):
                     detail = await _extract_detail(page, link.url)
 
-                    # 更新 ProductLink 的详情字段
-                    link.original_price = detail.get("original_price", "")
-                    link.main_images = detail.get("main_images", [])
-                    link.shop_url = detail.get("shop_url", "")
-                    link.location = detail.get("location", "")
-                    link.sku_info = detail.get("sku_info", [])
-                    link.detail_images = detail.get("detail_images", [])
                     if detail.get("title"):
                         link.title = detail["title"]
                     if detail.get("price"):
@@ -336,6 +330,13 @@ async def run_taobao_search(task: Task, ctx: BrowserContext):
                     if detail.get("shop_name"):
                         link.shop_name = detail["shop_name"]
                     await link.save()
+                    await ProductDetail.upsert_from_info(
+                        task_id=task.id,
+                        product_link_id=link.id,
+                        platform="taobao",
+                        url=link.url,
+                        info=detail,
+                    )
 
                     detail_count += 1
                     # progress: 详情阶段 35-95%
@@ -467,6 +468,8 @@ async def _search_keyword(
                         sales=it.get("sales", ""),
                         shop_name=it.get("shop_name", ""),
                         image=it.get("image", ""),
+                        source_type=ProductLinkSourceType.KEYWORD_SEARCH.value,
+                        monitor_status=ProductLinkMonitorStatus.CANDIDATE.value,
                     )
                     for it in new_items
                 ])

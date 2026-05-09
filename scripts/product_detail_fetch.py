@@ -5,9 +5,10 @@
   poetry run python -m scripts.product_detail_fetch --urls "url1,url2" --context-key "xxx"
 """
 
-import asyncio
 import argparse
+import asyncio
 import json
+from datetime import datetime, timedelta
 from typing import Any
 
 from agentbay import (
@@ -21,9 +22,18 @@ from agentbay import (
 )
 from config.settings import global_settings
 from models.context import BrowserContext
+from models.product_detail import ProductDetail
+from models.product_link import ProductLink, ProductLinkMonitorStatus
 from models.task import Task, TaskStatus
-from models.product_link import ProductLink
+from services.product_detail import get_provider_service
 from utils.logger import logger
+
+
+async def _dismiss_dialog(dialog) -> None:
+    try:
+        await dialog.dismiss()
+    except Exception as e:
+        logger.debug(f"[product_detail_fetch] dialog already closed: {e}")
 
 
 async def _agent_act(agent, instruction: str, retries: int = 2) -> bool:
@@ -38,7 +48,37 @@ async def _agent_act(agent, instruction: str, retries: int = 2) -> bool:
     return False
 
 
-# ── 平台检测 ──
+async def _close_popups_fast(page) -> None:
+    """用短平快 DOM 操作关闭常见弹层，避免 agent.act 长时间等待。"""
+    try:
+        await page.evaluate(
+            """
+            () => {
+                const selectors = [
+                    '.J-close', '.close', '.btn-close', '.dialog-close', '.modal-close',
+                    '[class*="close"]', '[aria-label="关闭"]', '[title="关闭"]'
+                ];
+                for (const selector of selectors) {
+                    document.querySelectorAll(selector).forEach((el) => {
+                        try { el.click(); } catch (e) {}
+                    });
+                }
+            }
+            """
+        )
+    except Exception as e:
+        logger.debug(f"[product_detail_fetch] fast popup close ignored: {e}")
+
+
+async def _settle_product_page(page, platform: str) -> None:
+    delay = 1.2 if platform == "jd" else 0.8
+    final_delay = 1.5 if platform == "jd" else 1.0
+    for y in [300, 900, 1500, 2300, 3200]:
+        await page.evaluate("(y) => window.scrollTo(0, y)", y)
+        await asyncio.sleep(delay)
+    await page.evaluate("window.scrollTo(0, 0)")
+    await asyncio.sleep(final_delay)
+
 
 _DETECT_PLATFORM_JS = """
 () => {
@@ -51,262 +91,44 @@ _DETECT_PLATFORM_JS = """
 }
 """
 
-# ── 淘宝详情页提取 ──
 
-_TAOBAO_DETAIL_JS = """
-() => {
-    const result = {};
+async def _load_detail_urls(params: dict, task: Task) -> list[str]:
+    platforms = params.get("platforms") or params.get("source_platforms") or []
+    if isinstance(platforms, str):
+        platforms = [platforms]
+    retry_missing = bool(params.get("retry_missing"))
 
-    // 标题
-    const titleEl = document.querySelector('[class*="Title--"], [class*="title--"], h1, [data-spm="1000983"]');
-    result.title = titleEl ? titleEl.textContent.trim().slice(0, 500) : '';
+    if params.get("source_task_id") or params.get("task_id"):
+        query = ProductLink.filter(task_id=params.get("source_task_id") or params.get("task_id"))
+    else:
+        query = ProductLink.filter(monitor_status=ProductLinkMonitorStatus.MONITORED.value)
+    if platforms:
+        query = query.filter(platform__in=platforms)
 
-    // 价格
-    const priceEl = document.querySelector('[class*="priceText"], [class*="Price--priceText"], [class*="priceText--"]');
-    result.price = priceEl ? priceEl.textContent.replace(/[^\\d.]/g, '') : '';
-    if (!result.price) {
-        const m = document.body.innerText.match(/¥\\s*([\\d,.]+)/);
-        result.price = m ? m[1] : '';
-    }
+    links = await query.order_by("created_at")
+    if not links:
+        return []
+    if not retry_missing:
+        return [link.url for link in links]
 
-    // 原价
-    const origEl = document.querySelector('[class*="originalPrice"], [class*="Price--original"]');
-    result.original_price = origEl ? origEl.textContent.replace(/[^\\d.]/g, '') : '';
-
-    // 销量
-    const salesEl = document.querySelector('[class*="soldContent"], [class*="Sold--"], [class*="sale"]');
-    result.sales = salesEl ? salesEl.textContent.trim() : '';
-    if (!result.sales) {
-        const m = document.body.innerText.match(/(\\d[\\d,]*\\+?)\\s*(人付款|人收货|月销|已售)/);
-        result.sales = m ? m[1] + m[2] : '';
-    }
-
-    // 店铺
-    const shopEl = document.querySelector('[class*="shopName"], [class*="ShopName--"], [class*="shopNameText"]');
-    result.shop_name = shopEl ? shopEl.textContent.trim().slice(0, 200) : '';
-    const shopLink = document.querySelector('[class*="shopName"] a, [class*="ShopName"] a, a[href*="shop"]');
-    result.shop_url = shopLink ? shopLink.href : '';
-
-    // 主图
-    const mainImages = [];
-    document.querySelectorAll('[class*="mainPic"], [class*="PicGallery--"] img, [class*="main-image"] img').forEach(img => {
-        const src = img.getAttribute('data-src') || img.getAttribute('src') || '';
-        if (src && !src.includes('spacer') && !src.includes('1x1')) {
-            const full = src.startsWith('//') ? 'https:' + src : src;
-            if (!mainImages.includes(full)) mainImages.push(full);
-        }
-    });
-    // 兜底：取第一张大图
-    if (mainImages.length === 0) {
-        for (const img of document.querySelectorAll('img')) {
-            const src = (img.getAttribute('data-src') || img.getAttribute('src') || '');
-            if (src.includes('imgextra') || src.includes('taobaocdn') || src.includes('alicdn')) {
-                const full = src.startsWith('//') ? 'https:' + src : src;
-                if (!mainImages.includes(full)) mainImages.push(full);
-            }
-        }
-    }
-    result.image = mainImages[0] || '';
-    result.main_images = mainImages;
-
-    // SKU
-    const skuItems = [];
-    document.querySelectorAll('[class*="skuItem"], [class*="SKUItem"], [class*="sku-item"]').forEach(el => {
-        skuItems.push(el.textContent.trim());
-    });
-    result.sku_info = skuItems;
-
-    // 发货地
-    const locEl = document.querySelector('[class*="locText"], [class*="Loc--"], [class*="shipAddress"]');
-    result.location = locEl ? locEl.textContent.trim() : '';
-
-    // 详情图
-    const detailImages = [];
-    document.querySelectorAll('#description img, [class*="desc"] img, [id*="desc"] img').forEach(img => {
-        const src = img.getAttribute('data-src') || img.getAttribute('src') || '';
-        if (src && src.startsWith('http')) {
-            detailImages.push(src);
-        }
-    });
-    result.detail_images = detailImages;
-
-    return result;
-}
-"""
-
-# ── 天猫详情页提取（和淘宝结构类似但选择器有差异） ──
-
-_TMALL_DETAIL_JS = """
-() => {
-    const result = {};
-
-    // 标题
-    const titleEl = document.querySelector('[class*="ItemHeader--"], [class*="title--"], h1');
-    result.title = titleEl ? titleEl.textContent.trim().slice(0, 500) : '';
-
-    // 价格
-    const priceEl = document.querySelector('[class*="priceText"], [class*="Price--priceText"], [class*="tm-price"]');
-    result.price = priceEl ? priceEl.textContent.replace(/[^\\d.]/g, '') : '';
-    if (!result.price) {
-        const m = document.body.innerText.match(/¥\\s*([\\d,.]+)/);
-        result.price = m ? m[1] : '';
-    }
-
-    // 原价
-    const origEl = document.querySelector('[class*="originalPrice"], [class*="Price--original"]');
-    result.original_price = origEl ? origEl.textContent.replace(/[^\\d.]/g, '') : '';
-
-    // 销量
-    const salesEl = document.querySelector('[class*="Sold--"], [class*="soldContent"], [class*="tm-count"]');
-    result.sales = salesEl ? salesEl.textContent.trim() : '';
-    if (!result.sales) {
-        const m = document.body.innerText.match(/(\\d[\\d,]*\\+?)\\s*(人付款|人收货|月销|已售)/);
-        result.sales = m ? m[1] + m[2] : '';
-    }
-
-    // 店铺
-    const shopEl = document.querySelector('[class*="shopName"], [class*="ShopName--"]');
-    result.shop_name = shopEl ? shopEl.textContent.trim().slice(0, 200) : '';
-    const shopLink = document.querySelector('a[href*="shop"], a[href*="store"]');
-    result.shop_url = shopLink ? shopLink.href : '';
-
-    // 主图
-    const mainImages = [];
-    document.querySelectorAll('[class*="PicGallery--"] img, [class*="mainPic"] img').forEach(img => {
-        const src = img.getAttribute('data-src') || img.getAttribute('src') || '';
-        if (src && !src.includes('spacer') && !src.includes('1x1')) {
-            const full = src.startsWith('//') ? 'https:' + src : src;
-            if (!mainImages.includes(full)) mainImages.push(full);
-        }
-    });
-    if (mainImages.length === 0) {
-        for (const img of document.querySelectorAll('img')) {
-            const src = (img.getAttribute('data-src') || img.getAttribute('src') || '');
-            if (src.includes('imgextra') || src.includes('alicdn')) {
-                const full = src.startsWith('//') ? 'https:' + src : src;
-                if (!mainImages.includes(full)) mainImages.push(full);
-            }
-        }
-    }
-    result.image = mainImages[0] || '';
-    result.main_images = mainImages;
-
-    // SKU
-    const skuItems = [];
-    document.querySelectorAll('[class*="skuItem"], [class*="SKUItem"]').forEach(el => {
-        skuItems.push(el.textContent.trim());
-    });
-    result.sku_info = skuItems;
-
-    // 发货地
-    const locEl = document.querySelector('[class*="locText"], [class*="Loc--"]');
-    result.location = locEl ? locEl.textContent.trim() : '';
-
-    // 详情图
-    const detailImages = [];
-    document.querySelectorAll('#description img, [class*="desc"] img').forEach(img => {
-        const src = img.getAttribute('data-src') || img.getAttribute('src') || '';
-        if (src && src.startsWith('http')) detailImages.push(src);
-    });
-    result.detail_images = detailImages;
-
-    return result;
-}
-"""
-
-# ── 京东详情页提取 ──
-
-_JD_DETAIL_JS = """
-() => {
-    const result = {};
-
-    // 标题
-    const titleEl = document.querySelector('[class*="itemInfo"], .itemInfo-wrap .sku-name, [class*="product-name"]');
-    result.title = titleEl ? titleEl.textContent.trim().slice(0, 500) : '';
-
-    // 价格
-    const priceEl = document.querySelector('[class*="price"], .p-price .price, [class*="J-p-"]');
-    result.price = priceEl ? priceEl.textContent.replace(/[^\\d.]/g, '') : '';
-    if (!result.price) {
-        const m = document.body.innerText.match(/¥\\s*([\\d,.]+)/);
-        result.price = m ? m[1] : '';
-    }
-
-    // 原价
-    const origEl = document.querySelector('.p-price del, [class*="orig-price"]');
-    result.original_price = origEl ? origEl.textContent.replace(/[^\\d.]/g, '') : '';
-
-    // 销量
-    result.sales = '';
-    const m = document.body.innerText.match(/(\\d[\\d,]*\\+?)\\s*(万)?\\s*(人?评价|人?购买|人?收货)/);
-    if (m) result.sales = m[0];
-
-    // 店铺
-    const shopEl = document.querySelector('[class*="shopName"], .J-hove-wrap .name a, [class*="shopName"] a');
-    result.shop_name = shopEl ? shopEl.textContent.trim().slice(0, 200) : '';
-    const shopLink = document.querySelector('[class*="shopName"] a, a[href*="shop.jd"], a[href*="mall.jd"]');
-    result.shop_url = shopLink ? shopLink.href : '';
-
-    // 主图
-    const mainImages = [];
-    document.querySelectorAll('#spec-img, [class*="main-img"] img, [class*="J-detail-content"] img, .lh img').forEach(img => {
-        const src = img.getAttribute('data-src') || img.getAttribute('src') || '';
-        if (src && !src.includes('spacer') && !src.includes('1x1')) {
-            const full = src.startsWith('//') ? 'https:' + src : src;
-            if (!mainImages.includes(full)) mainImages.push(full);
-        }
-    });
-    result.image = mainImages[0] || '';
-    result.main_images = mainImages;
-
-    // SKU
-    const skuItems = [];
-    document.querySelectorAll('[class*="sku-item"], #choose-attr .item a, [class*="J-sku-item"]').forEach(el => {
-        skuItems.push(el.textContent.trim());
-    });
-    result.sku_info = skuItems;
-
-    // 发货地
-    result.location = '';
-
-    // 详情图
-    const detailImages = [];
-    document.querySelectorAll('#detail .detail-content img, [class*="detail-list"] img, #J-detail-content img').forEach(img => {
-        const src = img.getAttribute('data-lazyload') || img.getAttribute('data-src') || img.getAttribute('src') || '';
-        if (src && src.startsWith('http')) detailImages.push(src);
-    });
-    result.detail_images = detailImages;
-
-    return result;
-}
-"""
-
-# ── 通用兜底提取 ──
-
-_GENERIC_DETAIL_JS = """
-() => {
-    const result = {};
-    result.title = document.title || '';
-    const m = document.body.innerText.match(/¥\\s*([\\d,.]+)/);
-    result.price = m ? m[1] : '';
-    result.original_price = '';
-    result.sales = '';
-    result.shop_name = '';
-    result.shop_url = '';
-    result.image = '';
-    result.main_images = [];
-    result.sku_info = [];
-    result.location = '';
-    result.detail_images = [];
-    return result;
-}
-"""
-
-_PLATFORM_DETAIL_JS = {
-    "taobao": _TAOBAO_DETAIL_JS,
-    "tmall": _TMALL_DETAIL_JS,
-    "jd": _JD_DETAIL_JS,
-}
+    details = await ProductDetail.filter(url__in=[link.url for link in links])
+    detail_map = {detail.url: detail for detail in details}
+    retry_urls = []
+    for link in links:
+        detail = detail_map.get(link.url)
+        missing_summary = not (link.title and link.price and link.image and link.shop_name)
+        missing_detail = (
+            detail is None
+            or not detail.title
+            or not detail.price
+            or not detail.image
+            or not detail.shop_name
+            or not detail.sku_info
+            or not detail.detail_images
+        )
+        if missing_summary or missing_detail:
+            retry_urls.append(link.url)
+    return retry_urls
 
 
 async def run_product_detail_fetch(task: Task, ctx: BrowserContext) -> dict[str, Any] | None:
@@ -315,18 +137,30 @@ async def run_product_detail_fetch(task: Task, ctx: BrowserContext) -> dict[str,
     urls = params.get("urls", [])
 
     if not urls:
-        links = await ProductLink.filter(task_id=task.id)
-        urls = [l.url for l in links]
+        urls = await _load_detail_urls(params, task)
 
     if not urls:
         await task.fail("No URLs provided")
         return None
+
+    all_urls = list(urls)
+    batch_size = int(params.get("batch_size") or len(all_urls))
+    current_offset = int(params.get("current_offset") or 0)
+    batch_index = int(params.get("batch_index") or 1)
+    interval_minutes = int(params.get("batch_interval_minutes") or 0)
+    urls = all_urls[current_offset : current_offset + batch_size]
+    if not urls:
+        await task.complete({"total": 0, "success": 0, "failed": 0, "message": "No remaining URLs"})
+        return None
+    task.not_before_at = None
+    await task.save()
 
     if not ctx.context_id:
         await task.fail("Context has no context_id")
         return None
 
     from sanic import Sanic
+
     app = Sanic.get_app()
     playwright = app.ctx.playwright
     agent_bay = AsyncAgentBay(api_key=global_settings.agentbay.api_key)
@@ -367,100 +201,110 @@ async def run_product_detail_fetch(task: Task, ctx: BrowserContext) -> dict[str,
         )
 
         endpoint = await session.browser.get_endpoint_url()
-        browser = await playwright.chromium.connect_over_cdp(endpoint)
+        browser = await asyncio.wait_for(playwright.chromium.connect_over_cdp(endpoint), timeout=30)
         bc = browser.contexts[0] if browser.contexts else await browser.new_context()
-        bc.on("dialog", lambda d: d.dismiss())
+        bc.on("dialog", lambda d: asyncio.create_task(_dismiss_dialog(d)))
 
         agent = session.browser.agent
         results = []
         total = len(urls)
 
         await task.log_step(1, "创建浏览器会话", {}, {"status": "ok"}, "completed")
+        await task.log_step(
+            2,
+            f"执行第 {batch_index} 批商品详情抓取",
+            {"offset": current_offset, "batch_size": batch_size, "total_urls": len(all_urls)},
+            {},
+            "running",
+        )
 
         for i, url in enumerate(urls):
             if task.status == TaskStatus.CANCELLED.value:
                 break
 
+            step = i + 3
             try:
-                await agent.navigate(url)
-                await asyncio.sleep(5)
-
-                await _agent_act(agent, "关闭页面上所有弹框、登录提示、广告弹窗。")
-                await asyncio.sleep(1)
-
-                # 刷新 page 引用
+                await task.log_step(step, f"抓取商品详情 {i + 1}/{total}", {"url": url}, {}, "running")
+                await _prepare_fresh_page(bc)
                 page = _get_page(bc)
                 if not page:
-                    results.append({"url": url, "error": "no active page"})
+                    error = "no active page"
+                    results.append({"url": url, "error": error})
+                    await task.log_step(step, f"抓取商品详情失败 {i + 1}/{total}", {"url": url}, {"error": error}, "failed")
+                    continue
+                await asyncio.wait_for(page.goto(url, wait_until="domcontentloaded", timeout=45000), timeout=50)
+                await asyncio.sleep(3)
+                await _close_popups_fast(page)
+                await asyncio.sleep(1)
+
+                page = _get_page(bc)
+                if not page:
+                    error = "no active page"
+                    results.append({"url": url, "error": error})
+                    await task.log_step(step, f"抓取商品详情失败 {i + 1}/{total}", {"url": url}, {"error": error}, "failed")
                     continue
 
-                # 检测平台
                 platform = await page.evaluate(_DETECT_PLATFORM_JS)
-                detail_js = _PLATFORM_DETAIL_JS.get(platform, _GENERIC_DETAIL_JS)
+                await _settle_product_page(page, platform)
+                await task.log_step(step, f"提取{platform}商品详情 {i + 1}/{total}", {"url": url, "platform": platform}, {}, "running")
+                provider_service = get_provider_service(platform)
+                info = await provider_service.extract(page)
 
-                # 第一遍提取
-                info = await page.evaluate(detail_js)
-
-                # 滚动到页面底部加载详情图
                 await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
                 await asyncio.sleep(2)
 
-                # 再提取一次详情图（滚动后可能加载更多）
                 page = _get_page(bc)
                 if page:
-                    detail_imgs = await page.evaluate("""
-                    () => {
-                        const imgs = [];
-                        document.querySelectorAll('#description img, [class*="desc"] img, #detail img, #J-detail-content img').forEach(img => {
-                            const src = img.getAttribute('data-lazyload') || img.getAttribute('data-src') || img.getAttribute('src') || '';
-                            if (src && src.startsWith('http')) imgs.push(src);
-                        });
-                        return imgs;
-                    }
-                    """)
+                    detail_imgs = await provider_service.extract_detail_images(page)
                     if detail_imgs:
                         info["detail_images"] = list(set(info.get("detail_images", []) + detail_imgs))
 
                 info["platform"] = platform
                 info["url"] = url
 
-                # 更新 ProductLink
-                updated = await ProductLink.filter(url=url).update(
-                    title=info.get("title", ""),
-                    price=info.get("price", ""),
-                    original_price=info.get("original_price", ""),
-                    sales=info.get("sales", ""),
-                    shop_name=info.get("shop_name", ""),
-                    shop_url=info.get("shop_url", ""),
-                    image=info.get("image", ""),
-                    main_images=info.get("main_images", []),
-                    location=info.get("location", ""),
-                    sku_info=info.get("sku_info", []),
-                    detail_images=info.get("detail_images", []),
-                    platform=platform,
-                )
+                update_data = {"task_id": task.id, "platform": platform}
+                for field in ["title", "price", "sales", "shop_name", "image"]:
+                    value = info.get(field)
+                    if value:
+                        update_data[field] = value
+                updated = await ProductLink.filter(url=url).update(**update_data)
+                link = await ProductLink.filter(url=url).first()
 
-                # 如果 ProductLink 不存在则创建
                 if updated == 0:
-                    await ProductLink.create(
+                    link = await ProductLink.create(
                         task_id=task.id,
                         url=url,
+                        raw_url=url,
                         platform=platform,
                         title=info.get("title", ""),
                         price=info.get("price", ""),
-                        original_price=info.get("original_price", ""),
                         sales=info.get("sales", ""),
                         shop_name=info.get("shop_name", ""),
-                        shop_url=info.get("shop_url", ""),
                         image=info.get("image", ""),
-                        main_images=info.get("main_images", []),
-                        location=info.get("location", ""),
-                        sku_info=info.get("sku_info", []),
-                        detail_images=info.get("detail_images", []),
                     )
+
+                await ProductDetail.upsert_from_info(
+                    task_id=task.id,
+                    product_link_id=link.id if link else None,
+                    platform=platform,
+                    url=url,
+                    info=info,
+                )
 
                 results.append({"url": url, "platform": platform, "title": info.get("title", "")[:40], "updated": updated > 0})
                 logger.info(f"[product_detail_fetch] {i+1}/{total} {platform} title={info.get('title', '')[:40]} url={url[:60]}")
+                await task.log_step(
+                    step,
+                    f"完成{platform}商品详情 {i + 1}/{total}",
+                    {"url": url, "platform": platform},
+                    {
+                        "title": info.get("title", "")[:80],
+                        "price": info.get("price", ""),
+                        "shop_name": info.get("shop_name", ""),
+                        "detail_images": len(info.get("detail_images", [])),
+                    },
+                    "completed",
+                )
 
                 task.progress = int((i + 1) / total * 100)
                 await task.save()
@@ -468,11 +312,47 @@ async def run_product_detail_fetch(task: Task, ctx: BrowserContext) -> dict[str,
             except Exception as e:
                 logger.warning(f"[product_detail_fetch] failed {url[:60]}: {e}")
                 results.append({"url": url, "error": str(e)})
+                await ProductLink.filter(url=url).update(monitor_status=ProductLinkMonitorStatus.INVALID.value)
+                await task.log_step(step, f"抓取商品详情失败 {i + 1}/{total}", {"url": url}, {"error": str(e)}, "failed")
+            finally:
+                try:
+                    await _reset_to_idle_page(bc, f"已完成 {i + 1}/{total}，等待下一条链接")
+                except Exception as e:
+                    logger.debug(f"[product_detail_fetch] reset idle page ignored: {e}")
 
-        await task.log_step(2, f"商品详情抓取完成: {len(results)} 条", {}, {"fetched": len(results)}, "completed")
+        next_offset = current_offset + len(urls)
+        has_more = next_offset < len(all_urls)
+        if has_more and interval_minutes > 0:
+            params["current_offset"] = next_offset
+            params["batch_index"] = batch_index + 1
+            task.params = params
+            task.not_before_at = datetime.now() + timedelta(minutes=interval_minutes)
+            task.status = TaskStatus.PENDING.value
+            task.progress = int(next_offset / len(all_urls) * 100)
+            await task.log_step(
+                total + 3,
+                f"第 {batch_index} 批完成，等待下次执行",
+                {},
+                {"fetched": len(results), "next_offset": next_offset, "remaining": len(all_urls) - next_offset},
+                "completed",
+            )
+            await task.save()
+            return {
+                "total": next_offset,
+                "success": sum(1 for r in results if not r.get("error")),
+                "failed": sum(1 for r in results if r.get("error")),
+                "results": results,
+                "queued_next": True,
+            }
+
+        params["current_offset"] = current_offset + len(results)
+        task.params = params
+        task.not_before_at = None
+        await task.save()
+        await task.log_step(total + 3, f"商品详情抓取完成: {current_offset + len(results)} 条", {}, {"fetched": len(results)}, "completed")
 
         return {
-            "total": len(results),
+            "total": current_offset + len(results),
             "success": sum(1 for r in results if not r.get("error")),
             "failed": sum(1 for r in results if r.get("error")),
             "results": results,
@@ -484,7 +364,10 @@ async def run_product_detail_fetch(task: Task, ctx: BrowserContext) -> dict[str,
                 await browser.close()
         except Exception:
             pass
-        await agent_bay.delete(session, sync_context=False)
+        try:
+            await agent_bay.delete(session, sync_context=False)
+        except Exception as e:
+            logger.warning(f"[product_detail_fetch] cleanup session failed: {e}")
 
 
 def _get_page(browser_context):
@@ -494,7 +377,47 @@ def _get_page(browser_context):
     return None
 
 
-# ── Standalone 模式 ──
+async def _prepare_fresh_page(browser_context) -> None:
+    """每个 URL 使用一个干净页面，避免长任务中标签页和 DOM 资源堆积。"""
+    page = _get_page(browser_context)
+    if not page:
+        page = await browser_context.new_page()
+    await _close_open_pages(browser_context, keep=page)
+    await page.goto("about:blank")
+    await page.bring_to_front()
+
+
+async def _close_open_pages(browser_context, keep=None) -> None:
+    for page in list(browser_context.pages):
+        try:
+            if keep is not None and page == keep:
+                continue
+            if not page.is_closed():
+                await page.close()
+        except Exception as e:
+            logger.debug(f"[product_detail_fetch] close page ignored: {e}")
+
+
+async def _reset_to_idle_page(browser_context, message: str = "等待下一条链接") -> None:
+    """关闭重页面后保留一个轻量状态页，避免云浏览器 iframe 白屏。"""
+    page = _get_page(browser_context)
+    if not page:
+        page = await browser_context.new_page()
+    await _close_open_pages(browser_context, keep=page)
+    await page.set_content(
+        f"""
+        <html>
+          <body style="margin:0;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f6f8fc;color:#344054;display:grid;place-items:center;height:100vh;">
+            <div style="text-align:center">
+              <div style="font-size:14px;font-weight:700;color:#101828;margin-bottom:6px">Micro Sniper 正在处理</div>
+              <div style="font-size:12px">{message}</div>
+            </div>
+          </body>
+        </html>
+        """
+    )
+    await page.bring_to_front()
+
 
 async def _run_standalone() -> None:
     parser = argparse.ArgumentParser(description="Standalone product detail fetch")
@@ -542,18 +465,23 @@ async def _run_standalone() -> None:
 
         endpoint_url = await session.browser.get_endpoint_url()
         playwright = await async_playwright().start()
-        browser = await playwright.chromium.connect_over_cdp(endpoint_url)
+        browser = await asyncio.wait_for(playwright.chromium.connect_over_cdp(endpoint_url), timeout=30)
         bc = browser.contexts[0] if browser.contexts else await browser.new_context()
-        bc.on("dialog", lambda d: d.dismiss())
+        bc.on("dialog", lambda d: asyncio.create_task(_dismiss_dialog(d)))
 
         agent = session.browser.agent
         results = []
 
         for i, url in enumerate(urls):
             try:
-                await agent.navigate(url)
-                await asyncio.sleep(5)
-                await _agent_act(agent, "关闭页面上所有弹框、登录提示、广告弹窗。")
+                await _prepare_fresh_page(bc)
+                page = _get_page(bc)
+                if not page:
+                    results.append({"url": url, "error": "no active page"})
+                    continue
+                await asyncio.wait_for(page.goto(url, wait_until="domcontentloaded", timeout=45000), timeout=50)
+                await asyncio.sleep(3)
+                await _close_popups_fast(page)
                 await asyncio.sleep(1)
 
                 page = _get_page(bc)
@@ -562,8 +490,18 @@ async def _run_standalone() -> None:
                     continue
 
                 platform = await page.evaluate(_DETECT_PLATFORM_JS)
-                detail_js = _PLATFORM_DETAIL_JS.get(platform, _GENERIC_DETAIL_JS)
-                info = await page.evaluate(detail_js)
+                provider_service = get_provider_service(platform)
+                info = await provider_service.extract(page)
+
+                await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                await asyncio.sleep(2)
+
+                page = _get_page(bc)
+                if page:
+                    detail_imgs = await provider_service.extract_detail_images(page)
+                    if detail_imgs:
+                        info["detail_images"] = list(set(info.get("detail_images", []) + detail_imgs))
+
                 info["platform"] = platform
                 info["url"] = url
                 results.append(info)
@@ -572,6 +510,11 @@ async def _run_standalone() -> None:
             except Exception as e:
                 print(f"[{i+1}/{len(urls)}] FAILED {url[:60]}: {e}")
                 results.append({"url": url, "error": str(e)})
+            finally:
+                try:
+                    await _reset_to_idle_page(bc, f"已完成 {i + 1}/{len(urls)}，等待下一条链接")
+                except Exception as e:
+                    logger.debug(f"[product_detail_fetch] reset idle page ignored: {e}")
 
         with open(args.output, "w", encoding="utf-8") as f:
             json.dump(results, f, ensure_ascii=False, indent=2)
@@ -585,7 +528,10 @@ async def _run_standalone() -> None:
             pass
         if playwright:
             await playwright.stop()
-        await agent_bay.delete(session, sync_context=False)
+        try:
+            await agent_bay.delete(session, sync_context=False)
+        except Exception as e:
+            logger.warning(f"[product_detail_fetch] cleanup session failed: {e}")
 
 
 if __name__ == "__main__":

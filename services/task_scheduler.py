@@ -56,6 +56,8 @@ async def scheduled_task_loop() -> None:
 
 async def scan_and_dispatch_due_tasks() -> int:
     now = datetime.now()
+    dispatched = await scan_and_dispatch_queued_tasks(now)
+
     tasks = await (
         Task.exclude(schedule="")
         .exclude(status__in=ACTIVE_STATUSES)
@@ -63,13 +65,45 @@ async def scan_and_dispatch_due_tasks() -> int:
         .limit(50)
     )
 
-    dispatched = 0
     for task in tasks:
         if not is_due(task, now):
             continue
         if await try_dispatch_scheduled_task(task, now):
             dispatched += 1
     return dispatched
+
+
+async def scan_and_dispatch_queued_tasks(now: datetime) -> int:
+    tasks = await (
+        Task.filter(status=TaskStatus.PENDING.value, not_before_at__lte=now)
+        .exclude(not_before_at=None)
+        .order_by("not_before_at", "created_at")
+        .limit(50)
+    )
+    dispatched = 0
+    for task in tasks:
+        if await try_dispatch_queued_task(task):
+            dispatched += 1
+    return dispatched
+
+
+async def try_dispatch_queued_task(task: Task) -> bool:
+    if not task.context_id:
+        return False
+    ctx_claimed = await BrowserContext.filter(
+        id=task.context_id,
+        status=ContextStatus.LOGGED_IN.value,
+    ).update(status=ContextStatus.IN_USE.value)
+    if not ctx_claimed:
+        logger.info(f"Queued task {task.id} skipped: context is not available")
+        return False
+    ctx = await BrowserContext.get(id=task.context_id)
+    ok = await dispatch_task(task, ctx)
+    if not ok:
+        await BrowserContext.filter(id=ctx.id).update(status=ContextStatus.LOGGED_IN.value)
+        return False
+    logger.info(f"Queued task {task.id} dispatched")
+    return True
 
 
 async def try_dispatch_scheduled_task(task: Task, now: datetime) -> bool:
