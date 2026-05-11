@@ -517,15 +517,19 @@ async def run_product_detail_fetch(task: Task, ctx: BrowserContext) -> dict[str,
         }
 
     finally:
-        try:
+        async def _close_browser():
             if browser:
                 await browser.close()
-        except Exception:
-            pass
+
         try:
-            await agent_bay.delete(session, sync_context=False)
+            await asyncio.wait_for(_close_browser(), timeout=10)
         except Exception as e:
-            logger.warning(f"[product_detail_fetch] cleanup session failed: {e}")
+            logger.warning(f"[product_detail_fetch] Failed to close browser (continuing): {e!r}")
+
+        try:
+            await asyncio.wait_for(agent_bay.delete(session, sync_context=False), timeout=30)
+        except Exception as e:
+            logger.warning(f"[product_detail_fetch] cleanup session failed: {e!r}")
 
 
 def _get_page(browser_context):
@@ -679,17 +683,20 @@ async def _run_standalone() -> None:
         print(f"\nSaved {len(results)} items to {args.output}")
 
     finally:
-        try:
+        async def _close_browser():
             if browser:
                 await browser.close()
-        except Exception:
-            pass
+
+        try:
+            await asyncio.wait_for(_close_browser(), timeout=10)
+        except Exception as e:
+            logger.warning(f"[product_detail_fetch] Failed to close browser (continuing): {e!r}")
         if playwright:
             await playwright.stop()
         try:
-            await agent_bay.delete(session, sync_context=False)
+            await asyncio.wait_for(agent_bay.delete(session, sync_context=False), timeout=30)
         except Exception as e:
-            logger.warning(f"[product_detail_fetch] cleanup session failed: {e}")
+            logger.warning(f"[product_detail_fetch] cleanup session failed: {e!r}")
 
 
 if __name__ == "__main__":
