@@ -85,6 +85,8 @@ async def ensure_runtime_schema():
         ALTER TABLE product_links ADD COLUMN IF NOT EXISTS source_type VARCHAR(50) NOT NULL DEFAULT 'keyword_search';
         ALTER TABLE product_links ADD COLUMN IF NOT EXISTS monitor_status VARCHAR(50) NOT NULL DEFAULT 'candidate';
         ALTER TABLE product_links ADD COLUMN IF NOT EXISTS tags JSONB NOT NULL DEFAULT '[]'::jsonb;
+        ALTER TABLE product_links ADD COLUMN IF NOT EXISTS lock_task_id UUID NULL;
+        ALTER TABLE product_links ADD COLUMN IF NOT EXISTS locked_at TIMESTAMP NULL;
         """
     )
 
@@ -130,23 +132,36 @@ async def cleanup_startup_resources():
     from models.context import BrowserContext, ContextStatus
     from models.task import Task, TaskStatus
 
-    active_statuses = [
-        TaskStatus.PENDING.value,
-        TaskStatus.RUNNING.value,
-        TaskStatus.WAITING_HUMAN_INPUT.value,
-    ]
-
-    tasks = await Task.filter(status__in=active_statuses)
+    stale_running_tasks = await Task.filter(
+        status__in=[TaskStatus.RUNNING.value, TaskStatus.WAITING_HUMAN_INPUT.value]
+    )
+    stale_pending_tasks = await Task.filter(status=TaskStatus.PENDING.value, not_before_at=None)
+    tasks = list(stale_running_tasks) + list(stale_pending_tasks)
     for task in tasks:
         await task.cancel()
     if tasks:
         logger.warning(f"Startup cleanup cancelled {len(tasks)} stale task(s)")
 
-    released = await BrowserContext.filter(status=ContextStatus.IN_USE.value).update(
-        status=ContextStatus.LOGGED_IN.value
-    )
+    active_context_ids = {
+        task.context_id
+        for task in await Task.filter(
+            status__in=[TaskStatus.RUNNING.value, TaskStatus.WAITING_HUMAN_INPUT.value]
+        )
+        if task.context_id
+    }
+    active_context_ids.update({
+        task.context_id
+        for task in await Task.filter(status=TaskStatus.PENDING.value, not_before_at=None)
+        if task.context_id
+    })
+    released = 0
+    for ctx in await BrowserContext.filter(status=ContextStatus.IN_USE.value):
+        if ctx.id not in active_context_ids:
+            ctx.status = ContextStatus.LOGGED_IN.value
+            await ctx.save()
+            released += 1
     if released:
-        logger.warning(f"Startup cleanup released {released} in-use browser context(s)")
+        logger.warning(f"Startup cleanup released {released} stale in-use browser context(s)")
 
     if not settings.agentbay.api_key:
         logger.warning("Startup cleanup skipped AgentBay session cleanup: missing API key")

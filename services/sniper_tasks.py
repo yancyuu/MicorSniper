@@ -56,6 +56,17 @@ _ECOMMERCE_CONTEXT_CANDIDATES = {
     "other": ["other", "unknown"],
 }
 
+_ACTIVE_TASK_STATUSES = [
+    TaskStatus.RUNNING.value,
+    TaskStatus.WAITING_HUMAN_INPUT.value,
+]
+
+
+async def _active_context_ids() -> set[str]:
+    tasks = await Task.filter(status__in=_ACTIVE_TASK_STATUSES)
+    pending_tasks = await Task.filter(status=TaskStatus.PENDING.value, not_before_at=None)
+    return {str(task.context_id) for task in [*tasks, *pending_tasks] if task.context_id}
+
 
 def normalize_schedule(raw_schedule) -> str:
     """归一化定时规则。当前只支持空值、预设名和秒数。"""
@@ -116,7 +127,7 @@ def _normalize_link_items(raw_links) -> list[dict[str, str]]:
             continue
         seen.add(url)
         normalized.append({
-            "url": url,
+            "url": ProductLink.canonicalize_url(url),
             "platform": platform or detect_platform_from_url(url),
             "keyword": keyword,
         })
@@ -233,19 +244,27 @@ async def validate_context_login(ctx: BrowserContext) -> bool:
 
 
 async def _valid_logged_in_contexts() -> list[BrowserContext]:
+    """返回可参与分配的上下文。
+
+    业务任务创建阶段不能做重型浏览器登录态校验，否则会卡住创建流程；
+    登录态失效由实际执行任务时暴露，并由用户重新登录/禁用账号处理。
+    """
+    active_context_ids = await _active_context_ids()
     contexts = await BrowserContext.filter(status=ContextStatus.LOGGED_IN.value).order_by("-updated_at")
-    valid = []
+    available = []
     for ctx in contexts:
-        if await validate_context_login(ctx):
-            valid.append(ctx)
-        else:
-            ctx.status = ContextStatus.PENDING.value
+        if str(ctx.id) in active_context_ids:
+            # 状态可能因异常/重启没有及时变回 in_use，这里按活跃任务兜底。
+            ctx.status = ContextStatus.IN_USE.value
             await ctx.save()
-    return valid
+            continue
+        available.append(ctx)
+    return available
 
 
 async def _available_session_slots() -> int:
-    active = await BrowserContext.filter(status=ContextStatus.IN_USE.value).count()
+    in_use = {str(ctx.id) for ctx in await BrowserContext.filter(status=ContextStatus.IN_USE.value)}
+    active = len(in_use | await _active_context_ids())
     return max(0, global_settings.task.max_concurrent_sessions - active)
 
 
@@ -268,11 +287,7 @@ def _least_loaded_context(contexts: list[BrowserContext], load: dict[str, int], 
 def _batch_policy(platforms: list[str], monitor_mode: str) -> tuple[int, int]:
     platform_set = set(platforms)
     if monitor_mode == "detail":
-        if "jd" in platform_set:
-            return 20, 30
-        if platform_set & {"taobao", "tmall"}:
-            return 50, 20
-        return 40, 20
+        return 8, 5
     if "jd" in platform_set:
         return 40, 20
     if platform_set & {"taobao", "tmall"}:
@@ -452,6 +467,8 @@ async def create_keyword_search_business_task(data: dict[str, Any]) -> dict[str,
                     "limit": limit,
                     "business_task": "keyword_search",
                     "business_platforms": platforms,
+                    "pages_per_batch": 2,
+                    "batch_interval_minutes": 5,
                     **params_extra,
                 },
                 schedule=schedule,
@@ -500,6 +517,8 @@ async def create_ecommerce_link_monitor_business_task(data: dict[str, Any]) -> d
     schedule = normalize_schedule(data.get("schedule"))
     allow_partial = bool(data.get("allow_partial"))
     monitor_mode = data.get("monitor_mode") or data.get("mode") or "price"
+    retry_missing = bool(data.get("retry_missing"))
+    fetch_mode = "complement" if retry_missing else "overwrite"
     task_type = "product_detail_fetch" if monitor_mode == "detail" else "search_by_urls"
     urls_by_platform: dict[str, list[str]] = {}
     if normalized:
@@ -555,26 +574,31 @@ async def create_ecommerce_link_monitor_business_task(data: dict[str, Any]) -> d
         used_context_ids.add(key)
         context_load.setdefault(key, 0)
         if key not in task_groups:
-            task_groups[key] = {"context": ctx, "platforms": [], "urls": []}
+            task_groups[key] = {"context": ctx, "platforms": [], "shards": {}, "url_count": 0}
         if platform not in task_groups[key]["platforms"]:
             task_groups[key]["platforms"].append(platform)
 
-    # 第二阶段：把每个渠道的 URL 均衡分配到该渠道可用、且不超过全局并发上限的上下文中。
+    # 第二阶段：给链接多的渠道补充更多上下文；任务里只存分片信息，不存大 URL 列表。
     for platform in runnable_platforms:
         candidates = platform_candidates[platform]
-        for url in urls_by_platform.get(platform, []):
+        target_contexts = min(len(candidates), slots, max(1, (len(urls_by_platform.get(platform, [])) + _batch_policy([platform], monitor_mode)[0] - 1) // _batch_policy([platform], monitor_mode)[0]))
+        while len([g for g in task_groups.values() if platform in g["platforms"]]) < target_contexts:
             ctx = _least_loaded_context(candidates, context_load, used_context_ids, slots)
             if not ctx:
-                missing.append(platform)
                 break
             key = str(ctx.id)
             used_context_ids.add(key)
-            context_load[key] = context_load.get(key, 0) + 1
+            context_load.setdefault(key, 0)
             if key not in task_groups:
-                task_groups[key] = {"context": ctx, "platforms": [], "urls": []}
+                task_groups[key] = {"context": ctx, "platforms": [], "shards": {}, "url_count": 0}
             if platform not in task_groups[key]["platforms"]:
                 task_groups[key]["platforms"].append(platform)
-            task_groups[key]["urls"].append(url)
+
+        platform_groups = [g for g in task_groups.values() if platform in g["platforms"]]
+        for index, group in enumerate(platform_groups):
+            group["shards"][platform] = {"index": index, "count": len(platform_groups)}
+            group["url_count"] += (len(urls_by_platform.get(platform, [])) + len(platform_groups) - 1) // len(platform_groups)
+            context_load[str(group["context"].id)] = context_load.get(str(group["context"].id), 0) + group["url_count"]
 
     missing = list(dict.fromkeys(missing))
     if missing and (not task_groups or not allow_partial):
@@ -599,15 +623,17 @@ async def create_ecommerce_link_monitor_business_task(data: dict[str, Any]) -> d
                 task_type=task_type,
                 context_id=ctx.id,
                 params={
-                    "urls": group["urls"],
                     "platforms": group["platforms"],
                     "business_task": "ecommerce_link_monitor",
                     "monitor_mode": monitor_mode,
                     "batch_index": 1,
                     "batch_size": batch_size,
                     "batch_interval_minutes": interval_minutes,
-                    "current_offset": 0,
-                    "total_urls": len(group["urls"]),
+                    "monitor_status": ProductLinkMonitorStatus.MONITORED.value,
+                    "shards": group["shards"],
+                    "total_urls": group["url_count"],
+                    "fetch_mode": fetch_mode,
+                    **({"retry_missing": True} if retry_missing else {}),
                 },
                 schedule=schedule,
             )
@@ -620,7 +646,7 @@ async def create_ecommerce_link_monitor_business_task(data: dict[str, Any]) -> d
                 "platforms": group["platforms"],
                 "context_id": str(ctx.id),
                 "status": task.status,
-                "url_count": len(group["urls"]),
+                "url_count": group["url_count"],
             })
     except ValueError as e:
         for ctx in claimed_contexts:
@@ -646,7 +672,18 @@ async def import_products(data: dict[str, Any]) -> dict[str, Any]:
     if not normalized:
         raise ServiceError({"success": False, "error": "No valid links found"})
 
-    grouped = await _import_product_links(normalized, data.get("name") or "")
+    raw_status = data.get("monitor_status") or ProductLinkMonitorStatus.MONITORED.value
+    try:
+        monitor_status = ProductLinkMonitorStatus(raw_status)
+    except ValueError:
+        raise ServiceError({"success": False, "error": "Invalid monitor_status"})
+
+    grouped = await _import_product_links(
+        normalized,
+        data.get("name") or "",
+        source_type=ProductLinkSourceType.CSV_IMPORT,
+        monitor_status=monitor_status,
+    )
 
     return {
         "total": len(normalized),
