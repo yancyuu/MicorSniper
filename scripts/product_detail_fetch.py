@@ -7,9 +7,12 @@
 
 import argparse
 import asyncio
+import random
 import json
 from datetime import datetime, timedelta
 from typing import Any
+from urllib.parse import urlparse
+from tortoise import Tortoise
 
 from agentbay import (
     ActOptions,
@@ -26,6 +29,7 @@ from models.product_detail import ProductDetail
 from models.product_link import ProductLink, ProductLinkMonitorStatus
 from models.task import Task, TaskStatus
 from services.product_detail import get_provider_service
+from utils.login_check import check_login_status, login_failed_message
 from utils.logger import logger
 
 
@@ -92,6 +96,89 @@ _DETECT_PLATFORM_JS = """
 """
 
 
+def _stable_shard(url: str, count: int) -> int:
+    return sum(ord(ch) for ch in url) % max(count, 1)
+
+
+def _check_product_invalid(platform: str, page_text: str, title: str, price: str) -> str | None:
+    """检测商品是否失效，返回失效原因或 None
+
+    Args:
+        platform: 平台名称
+        page_text: 页面文本内容
+        title: 提取的商品标题
+        price: 提取的价格
+
+    Returns:
+        失效原因字符串，或 None（商品有效或不确定）
+    """
+    if not page_text:
+        return None
+
+    text = page_text.lower()
+
+    # 各平台失效标志
+    invalid_patterns = {
+        "jd": ["商品已下架", "该商品已售罄", "商品不存在", "很抱歉，您查看的商品已下架"],
+        "taobao": ["此宝贝已下架", "商品已下架", "宝贝不存在", "该商品已失效"],
+        "tmall": ["此宝贝已下架", "商品已下架", "宝贝不存在", "该商品已失效"],
+        "1688": ["商品已下架", "商品已失效", "商品不存在", "已下架"],
+    }
+
+    patterns = invalid_patterns.get(platform, [])
+    for pattern in patterns:
+        if pattern in page_text:
+            return f"商品失效: {pattern}"
+
+    # 如果标题和价格都为空，且页面没有正常商品信息，可能是失效
+    if not title and not price:
+        # 检查是否是登录页面（如果包含"登录"、"注册"等，可能是登录拦截而非商品失效）
+        login_keywords = ["登录", "注册", "login", "sign in"]
+        if not any(kw in text for kw in login_keywords):
+            return "商品信息缺失（可能已下架或不存在）"
+
+    return None
+
+
+async def _claim_detail_links(params: dict, task: Task, batch_size: int) -> list[ProductLink]:
+    platforms = params.get("platforms") or params.get("source_platforms") or []
+    if isinstance(platforms, str):
+        platforms = [platforms]
+    platform_sql = "AND platform = ANY($3::text[])" if platforms else ""
+    args = [str(task.id), batch_size]
+    if platforms:
+        args.append(platforms)
+    conn = Tortoise.get_connection("default")
+    await conn.execute_query(
+        f"""
+        UPDATE product_links
+        SET lock_task_id = $1::uuid, locked_at = NOW()
+        WHERE id IN (
+            SELECT id FROM product_links
+            WHERE monitor_status = 'monitored'
+              AND lock_task_id IS NULL
+              {platform_sql}
+            ORDER BY created_at
+            LIMIT $2
+            FOR UPDATE SKIP LOCKED
+        )
+        """,
+        args,
+    )
+    links = await ProductLink.filter(lock_task_id=task.id).order_by("created_at")
+    shards = params.get("shards") or {}
+    if shards:
+        filtered = []
+        for link in links:
+            shard = shards.get(link.platform)
+            if shard and _stable_shard(link.url, int(shard.get("count") or 1)) == int(shard.get("index") or 0):
+                filtered.append(link)
+            else:
+                await ProductLink.filter(id=link.id).update(lock_task_id=None, locked_at=None)
+        links = filtered
+    return links
+
+
 async def _load_detail_urls(params: dict, task: Task) -> list[str]:
     platforms = params.get("platforms") or params.get("source_platforms") or []
     if isinstance(platforms, str):
@@ -106,6 +193,16 @@ async def _load_detail_urls(params: dict, task: Task) -> list[str]:
         query = query.filter(platform__in=platforms)
 
     links = await query.order_by("created_at")
+    shards = params.get("shards") or {}
+    if shards:
+        filtered = []
+        for link in links:
+            shard = shards.get(link.platform)
+            if not shard:
+                continue
+            if _stable_shard(link.url, int(shard.get("count") or 1)) == int(shard.get("index") or 0):
+                filtered.append(link)
+        links = filtered
     if not links:
         return []
     if not retry_missing:
@@ -134,20 +231,27 @@ async def _load_detail_urls(params: dict, task: Task) -> list[str]:
 async def run_product_detail_fetch(task: Task, ctx: BrowserContext) -> dict[str, Any] | None:
     """打开商品链接，提取完整商品信息，更新到 ProductLink。"""
     params = task.params or {}
-    urls = params.get("urls", [])
+    urls = [ProductLink.canonicalize_url(url) for url in (params.get("urls", []) or [])]
 
     if not urls:
-        urls = await _load_detail_urls(params, task)
+        batch_size = int(params.get("batch_size") or 100)
+        if params.get("retry_missing") or params.get("source_task_id") or params.get("task_id"):
+            urls = await _load_detail_urls(params, task)
+        else:
+            links = await _claim_detail_links(params, task, batch_size)
+            urls = [link.url for link in links]
 
     if not urls:
         await task.fail("No URLs provided")
         return None
 
     all_urls = list(urls)
-    batch_size = int(params.get("batch_size") or len(all_urls))
+    max_batch_size = int(params.get("batch_size") or len(all_urls))
+    batch_size = random.randint(5, min(8, max_batch_size)) if max_batch_size > 5 else max_batch_size
     current_offset = int(params.get("current_offset") or 0)
     batch_index = int(params.get("batch_index") or 1)
     interval_minutes = int(params.get("batch_interval_minutes") or 0)
+    interval_minutes = interval_minutes + int(random.uniform(0, 10)) if interval_minutes else 0
     urls = all_urls[current_offset : current_offset + batch_size]
     if not urls:
         await task.complete({"total": 0, "success": 0, "failed": 0, "message": "No remaining URLs"})
@@ -171,7 +275,8 @@ async def run_product_detail_fetch(task: Task, ctx: BrowserContext) -> dict[str,
         await task.fail(f"Context not found: {ctx.context_id}")
         return None
 
-    await task.log_step(1, "创建浏览器会话", {"context_id": ctx.context_id}, {}, "running")
+    base_step = len(task.logs or [])
+    await task.log_step(base_step + 1, "创建浏览器会话", {"context_id": ctx.context_id}, {}, "running")
 
     session_result = await agent_bay.create(
         CreateSessionParams(
@@ -209,20 +314,55 @@ async def run_product_detail_fetch(task: Task, ctx: BrowserContext) -> dict[str,
         results = []
         total = len(urls)
 
-        await task.log_step(1, "创建浏览器会话", {}, {"status": "ok"}, "completed")
+        await task.log_step(base_step + 1, "创建浏览器会话", {}, {"status": "ok"}, "completed")
         await task.log_step(
-            2,
+            base_step + 2,
             f"执行第 {batch_index} 批商品详情抓取",
             {"offset": current_offset, "batch_size": batch_size, "total_urls": len(all_urls)},
             {},
             "running",
         )
 
+        # FR-1: 每批次执行前校验登录态
+        # 检测本批次 URL 的主要平台
+        platforms_in_batch = []
+        for url in urls:
+            host = urlparse(url).hostname or ""
+            if "jd.com" in host:
+                platforms_in_batch.append("jd")
+            elif "tmall.com" in host or "tmall.hk" in host:
+                platforms_in_batch.append("tmall")
+            elif "taobao.com" in host:
+                platforms_in_batch.append("taobao")
+            elif "1688.com" in host:
+                platforms_in_batch.append("1688")
+        primary_platform = platforms_in_batch[0] if platforms_in_batch else "unknown"
+
+        login_result = await check_login_status(agent, primary_platform)
+        if login_result.logged_in:
+            await task.log_step(
+                base_step + 3,
+                f"登录态校验通过（{primary_platform}）",
+                {"platform": primary_platform},
+                {"logged_in": True},
+                "completed",
+            )
+        else:
+            await task.log_step(
+                base_step + 3,
+                f"登录态校验失败（{primary_platform}）",
+                {"platform": primary_platform},
+                {"logged_in": False, "reason": login_result.reason},
+                "failed",
+            )
+            await task.fail(login_failed_message(primary_platform))
+            return None
+
         for i, url in enumerate(urls):
             if task.status == TaskStatus.CANCELLED.value:
                 break
 
-            step = i + 3
+            step = base_step + i + 4
             try:
                 await task.log_step(step, f"抓取商品详情 {i + 1}/{total}", {"url": url}, {}, "running")
                 await _prepare_fresh_page(bc)
@@ -259,7 +399,12 @@ async def run_product_detail_fetch(task: Task, ctx: BrowserContext) -> dict[str,
                     if detail_imgs:
                         info["detail_images"] = list(set(info.get("detail_images", []) + detail_imgs))
 
+                # FR-4: 检测商品是否失效（仅在登录态正常后执行）
+                page_text = await page.evaluate("() => document.body ? document.body.innerText : ''")
+                invalid_reason = _check_product_invalid(platform, page_text, info.get("title", ""), info.get("price", ""))
+
                 info["platform"] = platform
+                url = ProductLink.canonicalize_url(url)
                 info["url"] = url
 
                 update_data = {"task_id": task.id, "platform": platform}
@@ -267,10 +412,18 @@ async def run_product_detail_fetch(task: Task, ctx: BrowserContext) -> dict[str,
                     value = info.get(field)
                     if value:
                         update_data[field] = value
+
+                # 如果确认商品失效，标记状态
+                if invalid_reason:
+                    update_data["monitor_status"] = ProductLinkMonitorStatus.INVALID.value
+                    logger.info(f"[product_detail_fetch] 商品失效: {url[:60]} - {invalid_reason}")
+
                 updated = await ProductLink.filter(url=url).update(**update_data)
                 link = await ProductLink.filter(url=url).first()
 
                 if updated == 0:
+                    if invalid_reason:
+                        update_data["monitor_status"] = ProductLinkMonitorStatus.INVALID.value
                     link = await ProductLink.create(
                         task_id=task.id,
                         url=url,
@@ -281,6 +434,7 @@ async def run_product_detail_fetch(task: Task, ctx: BrowserContext) -> dict[str,
                         sales=info.get("sales", ""),
                         shop_name=info.get("shop_name", ""),
                         image=info.get("image", ""),
+                        monitor_status=update_data.get("monitor_status", ProductLinkMonitorStatus.MONITORED.value),
                     )
 
                 await ProductDetail.upsert_from_info(
@@ -312,9 +466,11 @@ async def run_product_detail_fetch(task: Task, ctx: BrowserContext) -> dict[str,
             except Exception as e:
                 logger.warning(f"[product_detail_fetch] failed {url[:60]}: {e}")
                 results.append({"url": url, "error": str(e)})
-                await ProductLink.filter(url=url).update(monitor_status=ProductLinkMonitorStatus.INVALID.value)
+                logger.info(f"[product_detail_fetch] skipped status change for {url[:60]}: transient error")
                 await task.log_step(step, f"抓取商品详情失败 {i + 1}/{total}", {"url": url}, {"error": str(e)}, "failed")
             finally:
+                params["current_offset"] = current_offset + i + 1
+                task.params = params
                 try:
                     await _reset_to_idle_page(bc, f"已完成 {i + 1}/{total}，等待下一条链接")
                 except Exception as e:
@@ -330,13 +486,14 @@ async def run_product_detail_fetch(task: Task, ctx: BrowserContext) -> dict[str,
             task.status = TaskStatus.PENDING.value
             task.progress = int(next_offset / len(all_urls) * 100)
             await task.log_step(
-                total + 3,
+                base_step + total + 4,
                 f"第 {batch_index} 批完成，等待下次执行",
                 {},
                 {"fetched": len(results), "next_offset": next_offset, "remaining": len(all_urls) - next_offset},
                 "completed",
             )
             await task.save()
+            await ProductLink.filter(lock_task_id=task.id).update(lock_task_id=None, locked_at=None)
             return {
                 "total": next_offset,
                 "success": sum(1 for r in results if not r.get("error")),
@@ -348,8 +505,9 @@ async def run_product_detail_fetch(task: Task, ctx: BrowserContext) -> dict[str,
         params["current_offset"] = current_offset + len(results)
         task.params = params
         task.not_before_at = None
+        await ProductLink.filter(lock_task_id=task.id).update(lock_task_id=None, locked_at=None)
         await task.save()
-        await task.log_step(total + 3, f"商品详情抓取完成: {current_offset + len(results)} 条", {}, {"fetched": len(results)}, "completed")
+        await task.log_step(base_step + total + 4, f"商品详情抓取完成: {current_offset + len(results)} 条", {}, {"fetched": len(results)}, "completed")
 
         return {
             "total": current_offset + len(results),

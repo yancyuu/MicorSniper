@@ -2,7 +2,7 @@
 """应用内定时任务循环。"""
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from models.context import BrowserContext, ContextStatus
 from models.task import Task, TaskStatus
@@ -10,6 +10,7 @@ from services.task_runner import dispatch_task
 from utils.logger import logger
 
 SCAN_INTERVAL_SECONDS = 30
+BUSY_CONTEXT_DELAY_MINUTES = 1
 ACTIVE_STATUSES = [
     TaskStatus.PENDING.value,
     TaskStatus.RUNNING.value,
@@ -95,7 +96,16 @@ async def try_dispatch_queued_task(task: Task) -> bool:
         status=ContextStatus.LOGGED_IN.value,
     ).update(status=ContextStatus.IN_USE.value)
     if not ctx_claimed:
-        logger.info(f"Queued task {task.id} skipped: context is not available")
+        next_time = datetime.now() + timedelta(minutes=BUSY_CONTEXT_DELAY_MINUTES)
+        task.not_before_at = next_time
+        await task.log_step(
+            len(task.logs or []) + 1,
+            "上下文忙，顺延执行",
+            {"context_id": str(task.context_id)},
+            {"next_run_at": next_time.strftime("%Y-%m-%d %H:%M:%S")},
+            "pending",
+        )
+        logger.info(f"Queued task {task.id} delayed: context is not available")
         return False
     ctx = await BrowserContext.get(id=task.context_id)
     ok = await dispatch_task(task, ctx)

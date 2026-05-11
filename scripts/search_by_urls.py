@@ -9,6 +9,7 @@ import asyncio
 from datetime import datetime, timedelta
 from typing import Any
 from urllib.parse import urlparse
+from tortoise import Tortoise
 
 from agentbay import (
     ActOptions,
@@ -24,6 +25,7 @@ from config.settings import global_settings
 from models.context import BrowserContext
 from models.product_link import ProductLink, ProductLinkMonitorStatus
 from models.task import Task, TaskStatus
+from utils.login_check import check_login_status, login_failed_message
 from utils.logger import logger
 
 
@@ -79,10 +81,21 @@ _DETECT_PLATFORM_JS = """
 _PLATFORM_PRODUCT_JS = {
     "jd": """
     () => {
+        function cleanText(text) {
+            return String(text || '').replace(/\\s+/g, ' ').trim();
+        }
+        function normalizePrice(text) {
+            const value = String(text || '');
+            if (/(已售|销量|月销|评价|评论|人购买|人收货)/.test(value)) return '';
+            const marked = value.match(/[¥￥]\\s*([\\d,.]+)/);
+            if (marked) return marked[1].replace(/,/g, '');
+            const m = value.match(/\\d+(?:\\.\\d+)?/);
+            return m ? m[0] : '';
+        }
         function pickText(selectors) {
             for (const selector of selectors) {
                 const el = document.querySelector(selector);
-                if (el && el.textContent.trim()) return el.textContent.trim();
+                if (el && el.textContent.trim()) return cleanText(el.textContent);
             }
             return '';
         }
@@ -93,10 +106,10 @@ _PLATFORM_PRODUCT_JS = {
             return src.startsWith('//') ? 'https:' + src : src;
         }
         const body = document.body ? document.body.innerText : '';
-        const priceText = pickText(['.p-price', '[class*="price"]', '#jd-price']);
-        const priceMatch = priceText.match(/[\\d,.]+/) || body.match(/¥\\s*([\\d,.]+)/);
+        const priceText = pickText(['#jd-price', '.summary-price .p-price .price', '.p-price .price', '[class*="J-p-"]']);
+        const price = normalizePrice(priceText) || normalizePrice((body.match(/(?:京东价|到手价|秒杀价|券后价)?\\s*[¥￥]\\s*[\\d,.]+/) || [])[0]);
         return {
-            price: priceMatch ? priceMatch[1] || priceMatch[0] : '',
+            price,
             title: pickText(['.sku-name', 'h1']) || document.title,
             shop_name: pickText(['.J-hove-wrap .name', '[class*="shopName"]', '[class*="storeName"]']),
             sales: pickText(['#comment-count a', '[class*="comment"]']),
@@ -106,10 +119,21 @@ _PLATFORM_PRODUCT_JS = {
     """,
     "taobao": """
     () => {
+        function cleanText(text) {
+            return String(text || '').replace(/\\s+/g, ' ').trim();
+        }
+        function normalizePrice(text) {
+            const value = String(text || '');
+            if (/(已售|销量|月销|评价|评论|人付款|人收货)/.test(value)) return '';
+            const marked = value.match(/[¥￥]\\s*([\\d,.]+)/);
+            if (marked) return marked[1].replace(/,/g, '');
+            const m = value.match(/\\d+(?:\\.\\d+)?/);
+            return m ? m[0] : '';
+        }
         function pickText(selectors) {
             for (const selector of selectors) {
                 const el = document.querySelector(selector);
-                if (el && el.textContent.trim()) return el.textContent.trim();
+                if (el && el.textContent.trim()) return cleanText(el.textContent);
             }
             return '';
         }
@@ -120,10 +144,10 @@ _PLATFORM_PRODUCT_JS = {
             return src.startsWith('//') ? 'https:' + src : src;
         }
         const body = document.body ? document.body.innerText : '';
-        const priceText = pickText(['[class*="price"], [class*="Price"]']);
-        const priceMatch = priceText.match(/[\\d,.]+/) || body.match(/¥\\s*([\\d,.]+)/);
+        const priceText = pickText(['[class*="priceText"], [class*="Price--priceText"], [class*="priceText--"], [class*="price"], [class*="Price"]']);
+        const price = normalizePrice(priceText) || normalizePrice((body.match(/(?:券后|到手价)?\\s*[¥￥]\\s*[\\d,.]+/) || [])[0]);
         return {
-            price: priceMatch ? priceMatch[1] || priceMatch[0] : '',
+            price,
             title: pickText(['h1', '[class*="title"], [class*="Title"]']) || document.title,
             shop_name: pickText(['[class*="shop"], [class*="Shop"], [class*="store"], [class*="Store"]']),
             sales: (body.match(/(月销|已售|销量)\\s*([\\d,.万+]+)/) || [])[0] || '',
@@ -133,10 +157,21 @@ _PLATFORM_PRODUCT_JS = {
     """,
     "tmall": """
     () => {
+        function cleanText(text) {
+            return String(text || '').replace(/\\s+/g, ' ').trim();
+        }
+        function normalizePrice(text) {
+            const value = String(text || '');
+            if (/(已售|销量|月销|评价|评论|人付款|人收货)/.test(value)) return '';
+            const marked = value.match(/[¥￥]\\s*([\\d,.]+)/);
+            if (marked) return marked[1].replace(/,/g, '');
+            const m = value.match(/\\d+(?:\\.\\d+)?/);
+            return m ? m[0] : '';
+        }
         function pickText(selectors) {
             for (const selector of selectors) {
                 const el = document.querySelector(selector);
-                if (el && el.textContent.trim()) return el.textContent.trim();
+                if (el && el.textContent.trim()) return cleanText(el.textContent);
             }
             return '';
         }
@@ -147,10 +182,10 @@ _PLATFORM_PRODUCT_JS = {
             return src.startsWith('//') ? 'https:' + src : src;
         }
         const body = document.body ? document.body.innerText : '';
-        const priceText = pickText(['[class*="price"], [class*="Price"]', '.tm-price']);
-        const priceMatch = priceText.match(/[\\d,.]+/) || body.match(/¥\\s*([\\d,.]+)/);
+        const priceText = pickText(['[class*="priceText"], [class*="Price--priceText"], '.tm-price', '[class*="price"], [class*="Price"]']);
+        const price = normalizePrice(priceText) || normalizePrice((body.match(/(?:券后|到手价)?\\s*[¥￥]\\s*[\\d,.]+/) || [])[0]);
         return {
-            price: priceMatch ? priceMatch[1] || priceMatch[0] : '',
+            price,
             title: pickText(['h1', '[class*="title"], [class*="Title"]']) || document.title,
             shop_name: pickText(['[class*="shop"], [class*="Shop"], [class*="store"], [class*="Store"]']),
             sales: (body.match(/(月销|已售|销量)\\s*([\\d,.万+]+)/) || [])[0] || '',
@@ -160,10 +195,21 @@ _PLATFORM_PRODUCT_JS = {
     """,
     "1688": """
     () => {
+        function cleanText(text) {
+            return String(text || '').replace(/\\s+/g, ' ').trim();
+        }
+        function normalizePrice(text) {
+            const value = String(text || '');
+            if (/(成交|已售|销量|月销|评价|评论)/.test(value)) return '';
+            const marked = value.match(/[¥￥]\\s*([\\d,.]+)/);
+            if (marked) return marked[1].replace(/,/g, '');
+            const m = value.match(/\\d+(?:\\.\\d+)?/);
+            return m ? m[0] : '';
+        }
         function pickText(selectors) {
             for (const selector of selectors) {
                 const el = document.querySelector(selector);
-                if (el && el.textContent.trim()) return el.textContent.trim();
+                if (el && el.textContent.trim()) return cleanText(el.textContent);
             }
             return '';
         }
@@ -175,9 +221,9 @@ _PLATFORM_PRODUCT_JS = {
         }
         const body = document.body ? document.body.innerText : '';
         const priceText = pickText(['[class*="price"], [class*="Price"]']);
-        const priceMatch = priceText.match(/[\\d,.]+/) || body.match(/¥\\s*([\\d,.]+)/);
+        const price = normalizePrice(priceText) || normalizePrice((body.match(/[¥￥]\\s*[\\d,.]+/) || [])[0]);
         return {
-            price: priceMatch ? priceMatch[1] || priceMatch[0] : '',
+            price,
             title: pickText(['h1', '[class*="title"], [class*="Title"]']) || document.title,
             shop_name: pickText(['[class*="company"], [class*="shop"], [class*="store"]']),
             sales: (body.match(/(成交|销量|已售)\\s*([\\d,.万+]+)/) || [])[0] || '',
@@ -210,26 +256,97 @@ def _detect_channel_from_url(url: str) -> str:
     return "unknown"
 
 
+def _stable_shard(url: str, count: int) -> int:
+    return sum(ord(ch) for ch in url) % max(count, 1)
+
+
+def _check_product_invalid(platform: str, page_text: str, title: str, price: str) -> str | None:
+    """检测商品是否失效，返回失效原因或 None
+
+    Args:
+        platform: 平台名称
+        page_text: 页面文本内容
+        title: 提取的商品标题
+        price: 提取的价格
+
+    Returns:
+        失效原因字符串，或 None（商品有效或不确定）
+    """
+    if not page_text:
+        return None
+
+    text = page_text.lower()
+
+    # 各平台失效标志
+    invalid_patterns = {
+        "jd": ["商品已下架", "该商品已售罄", "商品不存在", "很抱歉，您查看的商品已下架"],
+        "taobao": ["此宝贝已下架", "商品已下架", "宝贝不存在", "该商品已失效"],
+        "tmall": ["此宝贝已下架", "商品已下架", "宝贝不存在", "该商品已失效"],
+        "1688": ["商品已下架", "商品已失效", "商品不存在", "已下架"],
+    }
+
+    patterns = invalid_patterns.get(platform, [])
+    for pattern in patterns:
+        if pattern in page_text:
+            return f"商品失效: {pattern}"
+
+    # 如果标题和价格都为空，且页面没有正常商品信息，可能是失效
+    if not title and not price:
+        # 检查是否是登录页面（如果包含"登录"、"注册"等，可能是登录拦截而非商品失效）
+        login_keywords = ["登录", "注册", "login", "sign in"]
+        if not any(kw in text for kw in login_keywords):
+            return "商品信息缺失（可能已下架或不存在）"
+
+    return None
+
+
+async def _claim_links(params: dict, task: Task, batch_size: int) -> list[ProductLink]:
+    platforms = params.get("platforms") or []
+    if isinstance(platforms, str):
+        platforms = [platforms]
+    shards = params.get("shards") or {}
+    platform_sql = "AND platform = ANY($3::text[])" if platforms else ""
+    args = [str(task.id), batch_size]
+    if platforms:
+        args.append(platforms)
+    conn = Tortoise.get_connection("default")
+    await conn.execute_query(
+        f"""
+        UPDATE product_links
+        SET lock_task_id = $1::uuid, locked_at = NOW()
+        WHERE id IN (
+            SELECT id FROM product_links
+            WHERE monitor_status = 'monitored'
+              AND lock_task_id IS NULL
+              {platform_sql}
+            ORDER BY created_at
+            LIMIT $2
+            FOR UPDATE SKIP LOCKED
+        )
+        """,
+        args,
+    )
+    links = await ProductLink.filter(lock_task_id=task.id).order_by("created_at")
+    if shards:
+        filtered = []
+        for link in links:
+            shard = shards.get(link.platform)
+            if shard and _stable_shard(link.url, int(shard.get("count") or 1)) == int(shard.get("index") or 0):
+                filtered.append(link)
+            else:
+                await ProductLink.filter(id=link.id).update(lock_task_id=None, locked_at=None)
+        links = filtered
+    return links
+
+
 async def run_search_by_urls(task: Task, ctx: BrowserContext) -> dict[str, Any] | None:
     """按 URL 批量打开商品链接并提取价格。"""
     params = task.params or {}
-    urls = _normalize_urls(params.get("urls", []))
+    urls = [ProductLink.canonicalize_url(url) for url in _normalize_urls(params.get("urls", []))]
 
     if not urls:
-        source_task_id = params.get("source_task_id") or params.get("task_id") or task.id
-        retry_missing = bool(params.get("retry_missing"))
-        if params.get("source_task_id") or params.get("task_id"):
-            query = ProductLink.filter(task_id=source_task_id)
-        else:
-            query = ProductLink.filter(monitor_status=ProductLinkMonitorStatus.MONITORED.value)
-        platforms = params.get("platforms") or []
-        if isinstance(platforms, str):
-            platforms = [platforms]
-        if platforms:
-            query = query.filter(platform__in=platforms)
-        if retry_missing:
-            query = query.filter(price="")
-        links = await query.order_by("created_at")
+        batch_size = int(params.get("batch_size") or 100)
+        links = await _claim_links(params, task, batch_size)
         urls = [l.url for l in links]
 
     if not urls:
@@ -299,20 +416,44 @@ async def run_search_by_urls(task: Task, ctx: BrowserContext) -> dict[str, Any] 
         agent = session.browser.agent
         results = []
         total = len(urls)
-        await task.log_step(1, "创建浏览器会话", {}, {"status": "ok"}, "completed")
+        base_step = len(task.logs or [])
+        await task.log_step(base_step + 1, "创建浏览器会话", {}, {"status": "ok"}, "completed")
         await task.log_step(
-            2,
+            base_step + 2,
             f"执行第 {batch_index} 批轻量价格监控",
             {"offset": current_offset, "batch_size": batch_size, "total_urls": len(all_urls)},
             {},
             "running",
         )
 
+        # FR-1: 每批次执行前校验登录态
+        platforms_in_batch = list({url: _detect_channel_from_url(url) for url in urls}.values())
+        primary_platform = platforms_in_batch[0] if platforms_in_batch else "unknown"
+        login_result = await check_login_status(agent, primary_platform)
+        if login_result.logged_in:
+            await task.log_step(
+                base_step + 3,
+                f"登录态校验通过（{primary_platform}）",
+                {"platform": primary_platform},
+                {"logged_in": True},
+                "completed",
+            )
+        else:
+            await task.log_step(
+                base_step + 3,
+                f"登录态校验失败（{primary_platform}）",
+                {"platform": primary_platform},
+                {"logged_in": False, "reason": login_result.reason},
+                "failed",
+            )
+            await task.fail(login_failed_message(primary_platform))
+            return None
+
         for i, url in enumerate(urls):
             if task.status == TaskStatus.CANCELLED.value:
                 break
 
-            step = i + 3
+            step = base_step + i + 4
             try:
                 await task.log_step(step, f"轻量检查商品价格 {i + 1}/{total}", {"url": url}, {}, "running")
                 await agent.navigate(url)
@@ -336,6 +477,12 @@ async def run_search_by_urls(task: Task, ctx: BrowserContext) -> dict[str, Any] 
                 if not isinstance(product, dict):
                     product = {}
                 price = product.get("price", "")
+                title = product.get("title", "")
+
+                # FR-4: 检测商品是否失效（仅在登录态正常后执行）
+                # 检查页面内容是否包含失效标志
+                page_text = await page.evaluate("() => document.body ? document.body.innerText : ''")
+                invalid_reason = _check_product_invalid(platform, page_text, title, price)
 
                 # 更新 ProductLink
                 update_data = {"task_id": task.id, "platform": platform}
@@ -343,8 +490,17 @@ async def run_search_by_urls(task: Task, ctx: BrowserContext) -> dict[str, Any] 
                     value = product.get(field)
                     if value:
                         update_data[field] = str(value)[:500] if field == "title" else value
+                url = ProductLink.canonicalize_url(url)
+
+                # 如果确认商品失效，标记状态
+                if invalid_reason:
+                    update_data["monitor_status"] = ProductLinkMonitorStatus.INVALID.value
+                    logger.info(f"[search_by_urls] 商品失效: {url[:60]} - {invalid_reason}")
+
                 updated = await ProductLink.filter(url=url).update(**update_data)
                 if not updated:
+                    if invalid_reason:
+                        update_data["monitor_status"] = ProductLinkMonitorStatus.INVALID.value
                     await ProductLink.create(
                         task_id=task.id,
                         platform=platform,
@@ -355,6 +511,7 @@ async def run_search_by_urls(task: Task, ctx: BrowserContext) -> dict[str, Any] 
                         sales=update_data.get("sales", ""),
                         shop_name=update_data.get("shop_name", ""),
                         image=update_data.get("image", ""),
+                        monitor_status=update_data.get("monitor_status", ProductLinkMonitorStatus.MONITORED.value),
                     )
                     updated = 1
 
@@ -377,14 +534,16 @@ async def run_search_by_urls(task: Task, ctx: BrowserContext) -> dict[str, Any] 
             except Exception as e:
                 logger.warning(f"[search_by_urls] failed {url[:60]}: {e}")
                 results.append({"url": url, "price": "", "error": str(e)})
-                await ProductLink.filter(url=url).update(monitor_status=ProductLinkMonitorStatus.INVALID.value)
+                logger.info(f"[search_by_urls] skipped status change for {url[:60]}: transient error")
                 await task.log_step(step, f"轻量检查失败 {i + 1}/{total}", {"url": url}, {"error": str(e)}, "failed")
             finally:
+                params["current_offset"] = current_offset + i + 1
+                task.params = params
                 task.progress = int((i + 1) / total * 100)
                 await task.save()
 
         next_offset = current_offset + len(urls)
-        has_more = next_offset < len(all_urls)
+        has_more = len(urls) == batch_size
         if has_more and interval_minutes > 0:
             params["current_offset"] = next_offset
             params["batch_index"] = batch_index + 1
@@ -393,13 +552,14 @@ async def run_search_by_urls(task: Task, ctx: BrowserContext) -> dict[str, Any] 
             task.status = TaskStatus.PENDING.value
             task.progress = int(next_offset / len(all_urls) * 100)
             await task.log_step(
-                total + 3,
+                base_step + total + 4,
                 f"第 {batch_index} 批完成，等待下次执行",
                 {},
                 {"checked": len(results), "next_offset": next_offset, "remaining": len(all_urls) - next_offset},
                 "completed",
             )
             await task.save()
+            await ProductLink.filter(lock_task_id=task.id).update(lock_task_id=None, locked_at=None)
             return {
                 "total": next_offset,
                 "updated": sum(1 for r in results if r.get("updated")),
@@ -411,8 +571,9 @@ async def run_search_by_urls(task: Task, ctx: BrowserContext) -> dict[str, Any] 
         params["current_offset"] = current_offset + len(results)
         task.params = params
         task.not_before_at = None
+        await ProductLink.filter(lock_task_id=task.id).update(lock_task_id=None, locked_at=None)
         await task.save()
-        await task.log_step(total + 3, f"轻量价格监控完成: {current_offset + len(results)} 条", {}, {"checked": len(results)}, "completed")
+        await task.log_step(base_step + total + 4, f"轻量价格监控完成: {current_offset + len(results)} 条", {}, {"checked": len(results)}, "completed")
 
         return {
             "total": current_offset + len(results),

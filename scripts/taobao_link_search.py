@@ -26,6 +26,7 @@ from models.context import BrowserContext
 from models.task import Task, TaskStatus
 from models.product_link import ProductLink, ProductLinkMonitorStatus, ProductLinkSourceType
 from utils.logger import logger
+from utils.login_check import check_login_status, login_failed_message
 
 
 _DEFAULT_LIMIT = 1000
@@ -193,6 +194,7 @@ async def run_taobao_link_search(task: Task, ctx: BrowserContext) -> dict[str, A
     max_pages = int(params.get("max_pages") or _DEFAULT_MAX_PAGES)
     title_required = params.get("title_required", "")
     title_blacklist = params.get("title_blacklist", [])
+    pages_per_batch = int(params.get("pages_per_batch") or 2)
 
     if not keywords:
         await task.fail("No keywords provided")
@@ -258,6 +260,17 @@ async def run_taobao_link_search(task: Task, ctx: BrowserContext) -> dict[str, A
         await task.log_step(1, "创建浏览器会话", {"context_id": ctx.context_id}, {"status": "ok"}, "completed")
         task.progress = 5
         await task.save()
+
+        # 登录态校验
+        agent = session.browser.agent
+        login_result = await check_login_status(agent, "taobao")
+        if login_result.logged_in:
+            await task.log_step(step_counter[0], "登录态校验通过（淘宝）", {"platform": "taobao"}, {"logged_in": True}, "completed")
+        else:
+            await task.log_step(step_counter[0], "登录态校验失败（淘宝）", {"platform": "taobao"}, {"logged_in": False, "reason": login_result.reason}, "failed")
+            await task.fail(login_failed_message("taobao"))
+            return None
+        step_counter[0] += 1
 
         seen_urls: set[str] = set()
         total_count = 0
@@ -328,6 +341,7 @@ async def run_taobao_link_search(task: Task, ctx: BrowserContext) -> dict[str, A
                 on_page_done=_on_page_done,
                 title_required=title_required,
                 title_blacklist=title_blacklist,
+                pages_per_batch=pages_per_batch,
             )
 
             await task.log_step(
@@ -348,6 +362,10 @@ async def run_taobao_link_search(task: Task, ctx: BrowserContext) -> dict[str, A
             "total": len(link_urls),
             "limit": limit,
             "keywords": keywords,
+            "platform": "taobao",
+            "keyword_index": index,
+            "keyword_count": keyword_count,
+            "keyword_done": keyword_count < remaining,
             "output": output,
         }
 
@@ -379,6 +397,7 @@ async def _collect_keyword_links(
     start_page: int = 1,
     title_required: str = "",
     title_blacklist: list[str] | None = None,
+    pages_per_batch: int = 0,
 ) -> int:
     """采集单个关键词的商品链接，每页完成后回调 on_page_done(page_items, page_num)。
 
@@ -466,6 +485,12 @@ async def _collect_keyword_links(
             break
         if empty_pages >= 3:
             logger.info(f"[taobao_link_search] keyword={keyword} 3 consecutive empty pages, stopping")
+            break
+
+        # 分批断点：每 pages_per_batch 页暂停
+        pages_in_batch = page_index - start_page + 1
+        if pages_per_batch > 0 and pages_in_batch >= pages_per_batch:
+            logger.info(f"[taobao_link_search] keyword={keyword} batch limit reached ({pages_per_batch} pages), pausing at page {page_index}")
             break
 
         moved = await _go_next_page(agent, page)

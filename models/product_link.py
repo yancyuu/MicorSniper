@@ -3,6 +3,7 @@
 
 import uuid
 from enum import Enum
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from tortoise.models import Model
 from tortoise.fields import (
@@ -74,7 +75,8 @@ class ProductLink(Model):
 
     # 同步状态（后续飞书同步用）
     synced = IntField(default=0, description="是否已同步：0 未同步, 1 已同步")
-
+    lock_task_id = UUIDField(null=True, description="当前锁定该链接的任务ID")
+    locked_at = DatetimeField(null=True, description="链接被任务锁定的时间")
     created_at = DatetimeField(auto_now_add=True, description="创建时间")
 
     class Meta:
@@ -86,17 +88,44 @@ class ProductLink(Model):
             ("keyword",),
             ("source_type",),
             ("monitor_status",),
+            ("lock_task_id",),
+            ("locked_at",),
             ("synced",),
         ]
+
+    @classmethod
+    def canonicalize_url(cls, url: str) -> str:
+        """商品 URL 标准化：同一商品按主 ID 去重，去掉 skuId/tracking 参数。"""
+        try:
+            parsed = urlsplit(str(url or "").strip())
+            host = parsed.netloc.lower()
+            query = dict(parse_qsl(parsed.query, keep_blank_values=False))
+            scheme = parsed.scheme or "https"
+            if "jd.com" in host:
+                return urlunsplit((scheme, host, parsed.path, "", ""))
+            if "tmall.com" in host or "taobao.com" in host:
+                keep = {"id": query["id"]} if query.get("id") else {}
+                return urlunsplit((scheme, host, parsed.path, urlencode(keep), ""))
+            return urlunsplit((scheme, host, parsed.path, parsed.query, ""))
+        except Exception:
+            return str(url or "").strip()
 
     @classmethod
     async def upsert_bulk(cls, links: list["ProductLink"]):
         """批量写入：按 URL 全局去重。已有则更新，否则创建。"""
         if not links:
             return
+        _CHUNK = 200
+        for link in links:
+            link.raw_url = link.raw_url or link.url
+            link.url = cls.canonicalize_url(link.url)
         urls = [l.url for l in links]
-        existing = await cls.filter(url__in=urls)
-        existing_map = {l.url: l for l in existing}
+
+        existing_map: dict[str, "ProductLink"] = {}
+        for i in range(0, len(urls), _CHUNK):
+            chunk = urls[i : i + _CHUNK]
+            for obj in await cls.filter(url__in=chunk):
+                existing_map[obj.url] = obj
 
         update_fields = [
             "task_id",
@@ -127,10 +156,10 @@ class ProductLink(Model):
             else:
                 to_create.append(link)
 
-        if to_create:
-            await cls.bulk_create(to_create)
-        if to_update:
-            await cls.bulk_update(to_update, update_fields)
+        for i in range(0, len(to_create), _CHUNK):
+            await cls.bulk_create(to_create[i : i + _CHUNK])
+        for i in range(0, len(to_update), _CHUNK):
+            await cls.bulk_update(to_update[i : i + _CHUNK], update_fields)
 
     def to_dict(self) -> dict:
         return {
@@ -156,5 +185,7 @@ class ProductLink(Model):
             "sku_info": self.sku_info,
             "detail_images": self.detail_images,
             "synced": self.synced,
+            "lock_task_id": str(self.lock_task_id) if self.lock_task_id else None,
+            "locked_at": self.locked_at.isoformat() if self.locked_at else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }

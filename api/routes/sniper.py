@@ -3,6 +3,7 @@
 
 from sanic import Blueprint, Request
 from sanic.response import json
+from tortoise.expressions import Q
 
 from models.task import Task, TaskStatus
 from models.context import BrowserContext, ContextStatus
@@ -153,10 +154,16 @@ async def retry_task(request: Request, task_id: str):
 
     try:
         params = task.params or {}
-        params["retry_missing"] = True
+        params["current_offset"] = 0
+        params["batch_index"] = 1
         task.params = params
+        task.progress = 0
+        task.result = None
+        task.error = None
+        task.logs = []
+        task.not_before_at = None
         await task.save()
-        await dispatch_task(task, ctx, reset=True, clear_logs=True)
+        await dispatch_task(task, ctx, reset=False, clear_logs=False)
     except ValueError as e:
         ctx.status = ContextStatus.LOGGED_IN.value
         await ctx.save()
@@ -244,7 +251,16 @@ async def list_products(request: Request):
     if platform:
         query = query.filter(platform=platform)
     if keyword:
-        query = query.filter(keyword__icontains=keyword)
+        query = query.filter(
+            Q(keyword__icontains=keyword)
+            | Q(title__icontains=keyword)
+            | Q(shop_name__icontains=keyword)
+            | Q(url__icontains=keyword)
+            | Q(raw_url__icontains=keyword)
+            | Q(platform__icontains=keyword)
+            | Q(price__icontains=keyword)
+            | Q(sales__icontains=keyword)
+        )
     if task_id:
         query = query.filter(task_id=task_id)
     if monitor_status:
@@ -316,6 +332,17 @@ async def update_product_monitor_status(request: Request, link_id: str):
         return json({"success": False, "error": "Product link not found"}, status=404)
     link = await ProductLink.get(id=link_id)
     return json({"success": True, "data": link.to_dict()})
+
+
+@products_bp.delete("/<link_id:str>")
+async def delete_product(request: Request, link_id: str):
+    """删除商品链接及其详情。"""
+    link = await ProductLink.filter(id=link_id).first()
+    if not link:
+        return json({"success": False, "error": "Product link not found"}, status=404)
+    await ProductDetail.filter(url=link.url).delete()
+    await link.delete()
+    return json({"success": True})
 
 
 @sniper_bp.get("/<task_id:str>/results/download")

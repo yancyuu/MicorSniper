@@ -40,16 +40,26 @@ async def list_contexts(request: Request):
 
 
 async def release_stale_contexts():
-    """释放没有运行中任务占用的上下文。"""
-    active_statuses = [
-        TaskStatus.PENDING.value,
-        TaskStatus.RUNNING.value,
-        TaskStatus.WAITING_HUMAN_INPUT.value,
-    ]
+    """同步上下文占用状态。"""
+    active_tasks = await Task.filter(
+        status__in=[TaskStatus.RUNNING.value, TaskStatus.WAITING_HUMAN_INPUT.value]
+    ).exclude(context_id=None)
+    active_tasks += await Task.filter(
+        status=TaskStatus.PENDING.value,
+        not_before_at=None,
+    ).exclude(context_id=None)
+    active_context_ids = {task.context_id for task in active_tasks}
+
+    # 有活跃任务占用但状态仍是 logged_in 的上下文，纠正为 in_use。
+    await BrowserContext.filter(
+        id__in=active_context_ids,
+        status=ContextStatus.LOGGED_IN.value,
+    ).update(status=ContextStatus.IN_USE.value)
+
+    # 没有活跃任务占用的 in_use 上下文，释放回 logged_in。
     contexts = await BrowserContext.filter(status=ContextStatus.IN_USE.value)
     for ctx in contexts:
-        has_active_task = await Task.filter(context_id=ctx.id, status__in=active_statuses).exists()
-        if not has_active_task:
+        if ctx.id not in active_context_ids:
             ctx.status = ContextStatus.LOGGED_IN.value
             await ctx.save()
 

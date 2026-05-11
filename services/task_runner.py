@@ -15,6 +15,19 @@ TaskRunner = Callable[[Task, BrowserContext], Awaitable[dict[str, Any] | None]]
 _running_asyncio_tasks: dict[str, asyncio.Task] = {}
 
 
+async def _context_has_active_work(ctx_id: str, exclude_task_id: str | None = None) -> bool:
+    active_statuses = [TaskStatus.RUNNING.value, TaskStatus.WAITING_HUMAN_INPUT.value]
+    running_exists = await Task.filter(context_id=ctx_id, status__in=active_statuses).exclude(id=exclude_task_id).exists()
+    if running_exists:
+        return True
+    pending_immediate_exists = (
+        await Task.filter(context_id=ctx_id, status=TaskStatus.PENDING.value, not_before_at=None)
+        .exclude(id=exclude_task_id)
+        .exists()
+    )
+    return pending_immediate_exists
+
+
 def get_running_task(task_id: str) -> asyncio.Task | None:
     task = _running_asyncio_tasks.get(task_id)
     if task and task.done():
@@ -34,16 +47,16 @@ def cancel_running_task(task_id: str) -> bool:
 def _get_runner(task_type: str) -> TaskRunner:
     if task_type == "taobao_link_search":
         from scripts.taobao_link_search import run_taobao_link_search
-
-        return run_taobao_link_search
+        from services.keyword_search import wrap_keyword_search
+        return wrap_keyword_search("taobao", run_taobao_link_search)
     if task_type == "jd_link_search":
         from scripts.jd_link_search import run_jd_link_search
-
-        return run_jd_link_search
+        from services.keyword_search import wrap_keyword_search
+        return wrap_keyword_search("jd", run_jd_link_search)
     if task_type == "tmall_link_search":
         from scripts.tmall_link_search import run_tmall_link_search
-
-        return run_tmall_link_search
+        from services.keyword_search import wrap_keyword_search
+        return wrap_keyword_search("tmall", run_tmall_link_search)
     if task_type == "taobao_keyword_search":
         from scripts.taobao_search import run_taobao_search
 
@@ -69,8 +82,16 @@ async def prepare_task_for_run(task: Task, clear_logs: bool = False) -> None:
     task.browser_url = ""
     task.started_at = None
     task.completed_at = None
+    task.not_before_at = None
+    params = task.params or {}
+    if "current_offset" in params:
+        params["current_offset"] = 0
+    if "batch_index" in params:
+        params["batch_index"] = 1
+    task.params = params
     if clear_logs:
         task.logs = []
+    task._normalize_datetime_fields()
     await task.save()
 
 
@@ -120,5 +141,6 @@ async def _run_task_with_context(task_id: str, ctx_id: str, runner: TaskRunner) 
         task._normalize_datetime_fields()
         await task.save()
 
-        ctx.status = ContextStatus.LOGGED_IN.value
-        await ctx.save()
+        if not await _context_has_active_work(str(ctx.id), task_id):
+            ctx.status = ContextStatus.LOGGED_IN.value
+            await ctx.save()
