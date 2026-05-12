@@ -220,7 +220,7 @@ async def run_taobao_link_search(task: Task, ctx: BrowserContext) -> dict[str, A
     session_result = await agent_bay.create(
         CreateSessionParams(
             labels={"app": "micro-sniper", "kind": "task", "task_type": task.task_type, "task_id": str(task.id)},
-            image_id="browser_latest",
+            image_id=global_settings.agentbay.image_id,
             browser_context=AgentBayContext(context_result.context.id, auto_upload=False),
         )
     )
@@ -638,7 +638,7 @@ async def _run_standalone() -> None:
     session_result = await agent_bay.create(
         CreateSessionParams(
             labels={"app": "micro-sniper", "kind": "standalone", "script": "taobao_link_search"},
-            image_id="browser_latest",
+            image_id=global_settings.agentbay.image_id,
             browser_context=AgentBayContext(context_result.context.id, auto_upload=False),
         )
     )

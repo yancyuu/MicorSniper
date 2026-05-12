@@ -170,7 +170,7 @@ async def start_login(request: Request, context_id: str):
     session_result = await agent_bay.create(
         CreateSessionParams(
             labels={"app": "micro-sniper", "kind": "login", "context_id": str(ctx.id)},
-            image_id="browser_latest",
+            image_id=global_settings.agentbay.image_id,
             browser_context=AgentBayContext(context_result.context.id, auto_upload=False)
         )
     )
@@ -274,7 +274,7 @@ async def get_context_cookies(request: Request, context_id: str):
     session_result = await agent_bay.create(
         CreateSessionParams(
             labels={"app": "micro-sniper", "kind": "cookies", "context_id": str(ctx.id)},
-            image_id="browser_latest",
+            image_id=global_settings.agentbay.image_id,
             browser_context=AgentBayContext(context_result.context.id, auto_upload=False)
         )
     )

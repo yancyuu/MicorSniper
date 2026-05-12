@@ -116,7 +116,7 @@ async def test_filter(keyword: str, limit: int = 20, context_key: str = ""):
 
     session_result = await agent_bay.create(
         CreateSessionParams(
-            image_id="browser_latest",
+            image_id=global_settings.agentbay.image_id,
             browser_context=AgentBayContext(context_result.context.id, auto_upload=False),
         )
     )

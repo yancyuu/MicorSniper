@@ -384,7 +384,7 @@ async def run_search_by_urls(task: Task, ctx: BrowserContext) -> dict[str, Any] 
     session_result = await agent_bay.create(
         CreateSessionParams(
             labels={"app": "micro-sniper", "kind": "task", "task_type": "search_by_urls", "task_id": str(task.id)},
-            image_id="browser_latest",
+            image_id=global_settings.agentbay.image_id,
             browser_context=AgentBayContext(context_result.context.id, auto_upload=False),
         )
     )

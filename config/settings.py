@@ -32,6 +32,7 @@ class AgentBayConfig(BaseModel):
     """AgentBay配置"""
     api_key: Optional[str] = Field(default=None, description="AgentBay API密钥")
     base_url: Optional[str] = Field(default=None, description="AgentBay API地址")
+    image_id: str = Field(default="linux_latest", description="Session 使用的镜像 ID（如 linux_latest、browser_latest）")
 
 
 class DatabaseConfig(BaseModel):
