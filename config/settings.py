@@ -21,7 +21,7 @@ class LogLevel(str, Enum):
 # ==================================
 class AppConfig(BaseModel):
     """应用配置"""
-    name: str = Field(default="Aether", description="服务名称")
+    name: str = Field(default="MicroSniper", description="服务名称")
     description: str = Field(default="浏览器自动化服务", description="应用描述")
     port: int = Field(default=1111, description="服务端口")
     debug: bool = Field(default=False, description="调试模式")

@@ -45,18 +45,11 @@ def cancel_running_task(task_id: str) -> bool:
 
 
 def _get_runner(task_type: str) -> TaskRunner:
-    if task_type == "taobao_link_search":
-        from scripts.taobao_link_search import run_taobao_link_search
-        from services.keyword_search import wrap_keyword_search
-        return wrap_keyword_search("taobao", run_taobao_link_search)
-    if task_type == "jd_link_search":
-        from scripts.jd_link_search import run_jd_link_search
-        from services.keyword_search import wrap_keyword_search
-        return wrap_keyword_search("jd", run_jd_link_search)
-    if task_type == "tmall_link_search":
-        from scripts.tmall_link_search import run_tmall_link_search
-        from services.keyword_search import wrap_keyword_search
-        return wrap_keyword_search("tmall", run_tmall_link_search)
+    if task_type in ("taobao_link_search", "jd_link_search", "tmall_link_search"):
+        platform = task_type.replace("_link_search", "")
+        from services.keyword_search import get_keyword_search_service
+        svc = get_keyword_search_service(platform)
+        return svc.run
     if task_type == "taobao_keyword_search":
         from scripts.taobao_search import run_taobao_search
 
