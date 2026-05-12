@@ -370,19 +370,22 @@ async def run_taobao_link_search(task: Task, ctx: BrowserContext) -> dict[str, A
         }
 
     finally:
-        try:
+        async def _close_browser():
             if browser:
                 cdp = await browser.new_browser_cdp_session()
                 await cdp.send("Browser.close")
                 await asyncio.sleep(0.5)
                 await browser.close()
+
+        try:
+            await asyncio.wait_for(_close_browser(), timeout=10)
         except Exception as e:
-            logger.warning(f"[taobao_link_search] Failed to close browser: {e}")
+            logger.warning(f"[taobao_link_search] Failed to close browser (continuing): {e!r}")
 
         try:
             await asyncio.wait_for(agent_bay.delete(session, sync_context=False), timeout=30)
         except Exception as e:
-            logger.warning(f"[taobao_link_search] Failed to delete session: {e}")
+            logger.warning(f"[taobao_link_search] Failed to delete session: {e!r}")
 
 
 async def _collect_keyword_links(
@@ -697,17 +700,23 @@ async def _run_standalone() -> None:
         print(f"\nSaved {len(results[:limit])} links to {args.output}")
 
     finally:
-        try:
+        async def _close_browser():
             if browser:
                 cdp = await browser.new_browser_cdp_session()
                 await cdp.send("Browser.close")
                 await asyncio.sleep(0.5)
                 await browser.close()
-        except Exception:
-            pass
+
+        try:
+            await asyncio.wait_for(_close_browser(), timeout=10)
+        except Exception as e:
+            logger.warning(f"[taobao_link_search] Failed to close browser (continuing): {e!r}")
         if playwright:
             await playwright.stop()
-        await agent_bay.delete(session, sync_context=False)
+        try:
+            await asyncio.wait_for(agent_bay.delete(session, sync_context=False), timeout=30)
+        except Exception as e:
+            logger.warning(f"[taobao_link_search] Failed to delete session: {e!r}")
 
 
 if __name__ == "__main__":

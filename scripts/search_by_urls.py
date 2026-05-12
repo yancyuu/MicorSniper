@@ -583,9 +583,16 @@ async def run_search_by_urls(task: Task, ctx: BrowserContext) -> dict[str, Any] 
         }
 
     finally:
-        try:
+        async def _close_browser():
             if browser:
                 await browser.close()
-        except Exception:
-            pass
-        await agent_bay.delete(session, sync_context=False)
+
+        try:
+            await asyncio.wait_for(_close_browser(), timeout=10)
+        except Exception as e:
+            logger.warning(f"[search_by_urls] Failed to close browser (continuing): {e!r}")
+
+        try:
+            await asyncio.wait_for(agent_bay.delete(session, sync_context=False), timeout=30)
+        except Exception as e:
+            logger.warning(f"[search_by_urls] Failed to delete session: {e!r}")

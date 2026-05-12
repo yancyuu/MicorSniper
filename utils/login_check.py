@@ -5,6 +5,8 @@ import asyncio
 from dataclasses import dataclass
 
 from agentbay import ExtractOptions
+from pydantic import BaseModel, Field
+
 from utils.logger import logger
 
 _PLATFORM_HOME_URLS = {
@@ -20,6 +22,13 @@ _PLATFORM_LOGIN_PROMPTS = {
     "tmall": "请查看当前页面，判断天猫网站是否处于已登录状态。已登录的标志是页面顶部显示用户昵称或用户头像区域。未登录则显示'请登录'、'免费注册'等链接。",
     "1688": "请查看当前页面，判断1688网站是否处于已登录状态。已登录的标志是页面顶部显示公司名、用户名、或'已登录'提示。未登录则显示'请登录'、'免费注册'、'加入1688'等链接。",
 }
+
+
+class _LoginExtractSchema(BaseModel):
+    """AgentBay agent.extract 的结构化输出 schema。必须是 Pydantic 模型。"""
+
+    logged_in: bool = Field(description="是否已登录")
+    reason: str = Field(default="", description="判断依据的简短说明")
 
 
 @dataclass
@@ -41,38 +50,41 @@ async def check_login_status(agent, platform: str, timeout: int = 30) -> LoginCh
         return LoginCheckResult(logged_in=True, platform=platform, reason="unknown platform, skip")
 
     prompt = _PLATFORM_LOGIN_PROMPTS.get(platform, f"请判断{platform}网站是否处于已登录状态。")
-    instruction = f"{prompt} 请用JSON格式回答：{{\"logged_in\": true/false, \"reason\": \"简短说明\"}}"
+    instruction = f"{prompt} 请给出 logged_in (true/false) 与 reason (简短说明)。"
 
     try:
         await agent.navigate(home_url)
         await asyncio.sleep(3)
 
-        result = await agent.extract(
+        success, payload = await agent.extract(
             ExtractOptions(
                 instruction=instruction,
-                schema=LoginCheckResult,
+                schema=_LoginExtractSchema,
                 use_vision=True,
                 timeout=timeout,
             )
         )
 
-        if hasattr(result, "logged_in") and isinstance(result.logged_in, bool):
+        if not success or payload is None:
+            logger.warning(f"[login_check] extract returned success=False for {platform}: {payload}")
+            return LoginCheckResult(logged_in=False, platform=platform, reason="extract 调用失败")
+
+        if isinstance(payload.logged_in, bool):
             return LoginCheckResult(
-                logged_in=result.logged_in,
+                logged_in=payload.logged_in,
                 platform=platform,
-                reason=getattr(result, "reason", ""),
+                reason=payload.reason or "",
             )
 
-        # AI 返回了不确定结果
-        logger.warning(f"[login_check] Ambiguous result for {platform}: {result}")
+        logger.warning(f"[login_check] Ambiguous result for {platform}: {payload}")
         return LoginCheckResult(logged_in=False, platform=platform, reason="检测结果不确定")
 
     except asyncio.TimeoutError:
         logger.warning(f"[login_check] Timeout checking login for {platform}")
         return LoginCheckResult(logged_in=False, platform=platform, reason="检测超时")
     except Exception as e:
-        logger.warning(f"[login_check] Failed to check login for {platform}: {e}")
-        return LoginCheckResult(logged_in=False, platform=platform, reason=str(e))
+        logger.warning(f"[login_check] Failed to check login for {platform}: {e!r}")
+        return LoginCheckResult(logged_in=False, platform=platform, reason=repr(e))
 
 
 _PLATFORM_LABELS = {"jd": "京东", "taobao": "淘宝", "tmall": "天猫", "1688": "1688"}
