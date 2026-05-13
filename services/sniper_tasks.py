@@ -18,6 +18,7 @@ from sanic import Sanic
 from config.settings import global_settings
 from models.context import BrowserContext, ContextStatus
 from models.product_link import ProductLink, ProductLinkMonitorStatus, ProductLinkSourceType
+from models.intel_link import IntelLink
 from models.task import Task, TaskStatus
 from services.task_runner import _get_runner, dispatch_task
 from utils.logger import logger
@@ -40,13 +41,13 @@ _KEYWORD_SEARCH_TASK_TYPES = {
 
 _CONTEXT_PLATFORM_CANDIDATES = {
     "taobao": ["taobao"],
-    "tmall": ["tmall", "taobao"],
+    "tmall": ["taobao"],
     "jd": ["jd"],
 }
 
 _ECOMMERCE_CONTEXT_CANDIDATES = {
     "taobao": ["taobao"],
-    "tmall": ["tmall", "taobao"],
+    "tmall": ["taobao"],
     "jd": ["jd"],
     "1688": ["1688", "taobao"],
     "xiaohongshu": ["xiaohongshu"],
@@ -139,6 +140,7 @@ async def _import_product_links(
     name: str = "",
     source_type: ProductLinkSourceType = ProductLinkSourceType.CSV_IMPORT,
     monitor_status: ProductLinkMonitorStatus = ProductLinkMonitorStatus.MONITORED,
+    tags: list[str] | None = None,
 ) -> dict[str, int]:
     links = [
         ProductLink(
@@ -149,6 +151,7 @@ async def _import_product_links(
             raw_url=item["url"],
             source_type=source_type.value,
             monitor_status=monitor_status.value,
+            tags=tags or [],
         )
         for item in normalized
     ]
@@ -287,9 +290,11 @@ def _least_loaded_context(contexts: list[BrowserContext], load: dict[str, int], 
 def _batch_policy(platforms: list[str], monitor_mode: str) -> tuple[int, int]:
     platform_set = set(platforms)
     if monitor_mode == "detail":
+        if "jd" in platform_set:
+            return 5, 15
         return 8, 5
     if "jd" in platform_set:
-        return 40, 20
+        return 30, 30
     if platform_set & {"taobao", "tmall"}:
         return 120, 15
     if "1688" in platform_set:
@@ -456,22 +461,27 @@ async def create_keyword_search_business_task(data: dict[str, Any]) -> dict[str,
         for ctx in {str(context.id): context for context in selected.values()}.values():
             claimed_contexts.append(await _claim_context(ctx))
 
+        keyword_tags = data.get("tags") or []
+
         for platform, ctx in selected.items():
+            task_params = {
+                "keywords": keywords,
+                "limit": limit,
+                "total_urls": limit,
+                "business_task": "keyword_search",
+                "business_platforms": platforms,
+                "pages_per_batch": 5,
+                "batch_interval_minutes": 5,
+                **params_extra,
+            }
+            if keyword_tags:
+                task_params["tags"] = keyword_tags
             task = await Task.create(
                 source="api",
                 source_id="business_keyword_search",
                 task_type=_KEYWORD_SEARCH_TASK_TYPES[platform],
                 context_id=ctx.id,
-                params={
-                    "keywords": keywords,
-                    "limit": limit,
-                    "total_urls": limit,
-                    "business_task": "keyword_search",
-                    "business_platforms": platforms,
-                    "pages_per_batch": 5,
-                    "batch_interval_minutes": 5,
-                    **params_extra,
-                },
+                params=task_params,
                 schedule=schedule,
             )
             key = str(ctx.id)
@@ -521,13 +531,15 @@ async def create_ecommerce_link_monitor_business_task(data: dict[str, Any]) -> d
     retry_missing = bool(data.get("retry_missing"))
     fetch_mode = "complement" if retry_missing else "overwrite"
     task_type = "product_detail_fetch" if monitor_mode == "detail" else "search_by_urls"
+    is_intel = data.get("source") == "intel"
+    LinkModel = IntelLink if is_intel else ProductLink
     urls_by_platform: dict[str, list[str]] = {}
     if normalized:
         grouped = await _import_product_links(normalized, data.get("name") or "电商链接监控导入")
         for item in normalized:
             urls_by_platform.setdefault(item["platform"], []).append(item["url"])
     else:
-        query = ProductLink.filter(monitor_status=ProductLinkMonitorStatus.MONITORED.value)
+        query = LinkModel.filter(monitor_status=ProductLinkMonitorStatus.MONITORED.value)
         if selected_platforms:
             platforms = list(selected_platforms)
             if "taobao" in platforms and "tmall" not in platforms:
@@ -540,7 +552,7 @@ async def create_ecommerce_link_monitor_business_task(data: dict[str, Any]) -> d
         for link in links:
             grouped[link.platform] = grouped.get(link.platform, 0) + 1
             urls_by_platform.setdefault(link.platform, []).append(link.url)
-        normalized = [{"url": link.url, "platform": link.platform, "keyword": link.keyword} for link in links]
+        normalized = [{"url": link.url, "platform": link.platform, "keyword": getattr(link, "keyword", "")} for link in links]
 
     slots = await _available_session_slots()
     if slots <= 0:
@@ -635,6 +647,7 @@ async def create_ecommerce_link_monitor_business_task(data: dict[str, Any]) -> d
                     "total_urls": group["url_count"],
                     "fetch_mode": fetch_mode,
                     **({"retry_missing": True} if retry_missing else {}),
+                    **({"source": "intel"} if is_intel else {}),
                 },
                 schedule=schedule,
             )
@@ -679,11 +692,20 @@ async def import_products(data: dict[str, Any]) -> dict[str, Any]:
     except ValueError:
         raise ServiceError({"success": False, "error": "Invalid monitor_status"})
 
+    raw_source_type = data.get("source_type") or ProductLinkSourceType.CSV_IMPORT.value
+    try:
+        source_type = ProductLinkSourceType(raw_source_type)
+    except ValueError:
+        source_type = ProductLinkSourceType.CSV_IMPORT
+
+    import_tags = data.get("tags") or []
+
     grouped = await _import_product_links(
         normalized,
         data.get("name") or "",
-        source_type=ProductLinkSourceType.CSV_IMPORT,
+        source_type=source_type,
         monitor_status=monitor_status,
+        tags=import_tags,
     )
 
     return {

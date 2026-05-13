@@ -191,7 +191,7 @@ async def start_login(request: Request, context_id: str):
         redis = await get_redis()
         await redis.setex(
             f"login_session:{context_id}",
-            300,
+            600,
             f"{session.session_id}|{context_result.context.id}|{context_key}"
         )
 
@@ -422,3 +422,33 @@ async def confirm_login(request: Request, context_id: str):
             "status": ctx.status,
         }
     })
+
+
+@contexts_bp.post("/<context_id:str>/cancel-login")
+async def cancel_login(request: Request, context_id: str):
+    """取消登录，清理 session 资源"""
+    from agentbay import AsyncAgentBay
+    from config.settings import global_settings
+    from utils.cache import get_redis
+
+    redis = await get_redis()
+    session_info = await redis.get(f"login_session:{context_id}")
+
+    if not session_info:
+        return json({"success": True})
+
+    parts = session_info.decode().split("|")
+    session_id = parts[0]
+
+    agent_bay = AsyncAgentBay(api_key=global_settings.agentbay.api_key)
+
+    try:
+        session_result = await agent_bay.get(session_id)
+        if session_result.success and session_result.session:
+            await agent_bay.delete(session_result.session, sync_context=False)
+            logger.info(f"Login session cancelled and cleaned up: {session_id}")
+    except Exception as e:
+        logger.warning(f"Failed to cleanup login session: {e}")
+
+    await redis.delete(f"login_session:{context_id}")
+    return json({"success": True})

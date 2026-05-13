@@ -15,6 +15,7 @@ class ProductDetail(Model):
     product_link_id = UUIDField(null=True, description="关联的商品链接ID")
 
     platform = CharField(50, description="渠道：taobao, tmall, jd 等")
+    source = CharField(20, default="product", description="来源库：product / intel")
     url = TextField(description="商品链接")
 
     title = CharField(500, default="", description="商品标题")
@@ -45,12 +46,13 @@ class ProductDetail(Model):
         ]
 
     @classmethod
-    async def upsert_from_info(cls, *, task_id, product_link_id, platform: str, url: str, info: dict):
+    async def upsert_from_info(cls, *, task_id, product_link_id, platform: str, url: str, info: dict, source: str = "product"):
         existing = await cls.filter(url=url).first()
         data = {
             "task_id": task_id,
             "product_link_id": product_link_id,
             "platform": platform,
+            "source": source,
             "url": url,
             "title": info.get("title", ""),
             "price": info.get("price", ""),
@@ -78,6 +80,7 @@ class ProductDetail(Model):
             "task_id": str(self.task_id),
             "product_link_id": str(self.product_link_id) if self.product_link_id else None,
             "platform": self.platform,
+            "source": self.source,
             "url": self.url,
             "title": self.title,
             "price": self.price,

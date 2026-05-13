@@ -27,6 +27,7 @@ from config.settings import global_settings
 from models.context import BrowserContext
 from models.product_detail import ProductDetail
 from models.product_link import ProductLink, ProductLinkMonitorStatus
+from models.intel_link import IntelLink
 from models.task import Task, TaskStatus
 from services.product_detail import get_provider_service
 from utils.login_check import check_login_status, login_failed_message
@@ -75,8 +76,8 @@ async def _close_popups_fast(page) -> None:
 
 
 async def _settle_product_page(page, platform: str) -> None:
-    delay = 1.2 if platform == "jd" else 0.8
-    final_delay = 1.5 if platform == "jd" else 1.0
+    delay = 2.5 if platform == "jd" else 0.8
+    final_delay = 3.0 if platform == "jd" else 1.0
     for y in [300, 900, 1500, 2300, 3200]:
         await page.evaluate("(y) => window.scrollTo(0, y)", y)
         await asyncio.sleep(delay)
@@ -140,7 +141,7 @@ def _check_product_invalid(platform: str, page_text: str, title: str, price: str
     return None
 
 
-async def _claim_detail_links(params: dict, task: Task, batch_size: int) -> list[ProductLink]:
+async def _claim_detail_links(params: dict, task: Task, batch_size: int, link_model=ProductLink) -> list:
     platforms = params.get("platforms") or params.get("source_platforms") or []
     if isinstance(platforms, str):
         platforms = [platforms]
@@ -148,13 +149,14 @@ async def _claim_detail_links(params: dict, task: Task, batch_size: int) -> list
     args = [str(task.id), batch_size]
     if platforms:
         args.append(platforms)
+    table = link_model._meta.db_table
     conn = Tortoise.get_connection("default")
     await conn.execute_query(
         f"""
-        UPDATE product_links
+        UPDATE {table}
         SET lock_task_id = $1::uuid, locked_at = NOW()
         WHERE id IN (
-            SELECT id FROM product_links
+            SELECT id FROM {table}
             WHERE monitor_status = 'monitored'
               AND lock_task_id IS NULL
               {platform_sql}
@@ -165,7 +167,7 @@ async def _claim_detail_links(params: dict, task: Task, batch_size: int) -> list
         """,
         args,
     )
-    links = await ProductLink.filter(lock_task_id=task.id).order_by("created_at")
+    links = await link_model.filter(lock_task_id=task.id).order_by("created_at")
     shards = params.get("shards") or {}
     if shards:
         filtered = []
@@ -174,21 +176,21 @@ async def _claim_detail_links(params: dict, task: Task, batch_size: int) -> list
             if shard and _stable_shard(link.url, int(shard.get("count") or 1)) == int(shard.get("index") or 0):
                 filtered.append(link)
             else:
-                await ProductLink.filter(id=link.id).update(lock_task_id=None, locked_at=None)
+                await link_model.filter(id=link.id).update(lock_task_id=None, locked_at=None)
         links = filtered
     return links
 
 
-async def _load_detail_urls(params: dict, task: Task) -> list[str]:
+async def _load_detail_urls(params: dict, task: Task, link_model=ProductLink) -> list[str]:
     platforms = params.get("platforms") or params.get("source_platforms") or []
     if isinstance(platforms, str):
         platforms = [platforms]
     retry_missing = bool(params.get("retry_missing"))
 
     if params.get("source_task_id") or params.get("task_id"):
-        query = ProductLink.filter(task_id=params.get("source_task_id") or params.get("task_id"))
+        query = link_model.filter(task_id=params.get("source_task_id") or params.get("task_id"))
     else:
-        query = ProductLink.filter(monitor_status=ProductLinkMonitorStatus.MONITORED.value)
+        query = link_model.filter(monitor_status=ProductLinkMonitorStatus.MONITORED.value)
     if platforms:
         query = query.filter(platform__in=platforms)
 
@@ -229,16 +231,19 @@ async def _load_detail_urls(params: dict, task: Task) -> list[str]:
 
 
 async def run_product_detail_fetch(task: Task, ctx: BrowserContext) -> dict[str, Any] | None:
-    """打开商品链接，提取完整商品信息，更新到 ProductLink。"""
+    """打开商品链接，提取完整商品信息，更新到 ProductLink / IntelLink。"""
     params = task.params or {}
-    urls = [ProductLink.canonicalize_url(url) for url in (params.get("urls", []) or [])]
+    is_intel = params.get("source") == "intel"
+    LinkModel = IntelLink if is_intel else ProductLink
+    detail_source = "intel" if is_intel else "product"
+    urls = [LinkModel.canonicalize_url(url) for url in (params.get("urls", []) or [])]
 
     if not urls:
         batch_size = int(params.get("batch_size") or 100)
         if params.get("retry_missing") or params.get("source_task_id") or params.get("task_id"):
-            urls = await _load_detail_urls(params, task)
+            urls = await _load_detail_urls(params, task, link_model=LinkModel)
         else:
-            links = await _claim_detail_links(params, task, batch_size)
+            links = await _claim_detail_links(params, task, batch_size, link_model=LinkModel)
             urls = [link.url for link in links]
 
     if not urls:
@@ -248,6 +253,17 @@ async def run_product_detail_fetch(task: Task, ctx: BrowserContext) -> dict[str,
     all_urls = list(urls)
     max_batch_size = int(params.get("batch_size") or len(all_urls))
     batch_size = random.randint(5, min(8, max_batch_size)) if max_batch_size > 5 else max_batch_size
+
+    # 平台差异化批次：淘宝/天猫更激进，JD 保持保守
+    primary_platforms = set()
+    for url in urls:
+        host = urlparse(url).hostname or ""
+        if "jd.com" in host:
+            primary_platforms.add("jd")
+        elif "taobao.com" in host or "tmall.com" in host or "tmall.hk" in host:
+            primary_platforms.add("taobao")
+    if "jd" not in primary_platforms and max_batch_size > 8:
+        batch_size = random.randint(8, min(12, max_batch_size))
     current_offset = int(params.get("current_offset") or 0)
     batch_index = int(params.get("batch_index") or 1)
     interval_minutes = int(params.get("batch_interval_minutes") or 0)
@@ -404,7 +420,7 @@ async def run_product_detail_fetch(task: Task, ctx: BrowserContext) -> dict[str,
                 invalid_reason = _check_product_invalid(platform, page_text, info.get("title", ""), info.get("price", ""))
 
                 info["platform"] = platform
-                url = ProductLink.canonicalize_url(url)
+                url = LinkModel.canonicalize_url(url)
                 info["url"] = url
 
                 update_data = {"task_id": task.id, "platform": platform}
@@ -418,13 +434,13 @@ async def run_product_detail_fetch(task: Task, ctx: BrowserContext) -> dict[str,
                     update_data["monitor_status"] = ProductLinkMonitorStatus.INVALID.value
                     logger.info(f"[product_detail_fetch] 商品失效: {url[:60]} - {invalid_reason}")
 
-                updated = await ProductLink.filter(url=url).update(**update_data)
-                link = await ProductLink.filter(url=url).first()
+                updated = await LinkModel.filter(url=url).update(**update_data)
+                link = await LinkModel.filter(url=url).first()
 
                 if updated == 0:
                     if invalid_reason:
                         update_data["monitor_status"] = ProductLinkMonitorStatus.INVALID.value
-                    link = await ProductLink.create(
+                    link = await LinkModel.create(
                         task_id=task.id,
                         url=url,
                         raw_url=url,
@@ -443,6 +459,7 @@ async def run_product_detail_fetch(task: Task, ctx: BrowserContext) -> dict[str,
                     platform=platform,
                     url=url,
                     info=info,
+                    source=detail_source,
                 )
 
                 results.append({"url": url, "platform": platform, "title": info.get("title", "")[:40], "updated": updated > 0})
@@ -493,7 +510,7 @@ async def run_product_detail_fetch(task: Task, ctx: BrowserContext) -> dict[str,
                 "completed",
             )
             await task.save()
-            await ProductLink.filter(lock_task_id=task.id).update(lock_task_id=None, locked_at=None)
+            await LinkModel.filter(lock_task_id=task.id).update(lock_task_id=None, locked_at=None)
             return {
                 "total": next_offset,
                 "success": sum(1 for r in results if not r.get("error")),
@@ -505,7 +522,7 @@ async def run_product_detail_fetch(task: Task, ctx: BrowserContext) -> dict[str,
         params["current_offset"] = current_offset + len(results)
         task.params = params
         task.not_before_at = None
-        await ProductLink.filter(lock_task_id=task.id).update(lock_task_id=None, locked_at=None)
+        await LinkModel.filter(lock_task_id=task.id).update(lock_task_id=None, locked_at=None)
         await task.save()
         await task.log_step(base_step + total + 4, f"商品详情抓取完成: {current_offset + len(results)} 条", {}, {"fetched": len(results)}, "completed")
 

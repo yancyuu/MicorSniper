@@ -8,7 +8,7 @@ from tortoise.fields import (
     TextField, UUIDField, JSONField
 )
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 class TaskStatus(str, Enum):
@@ -226,7 +226,41 @@ class Task(Model):
 
     # ===== AI 可读格式转换 =====
 
-    def to_agent_readable(self) -> dict:
+    def estimate_completion_at(self) -> datetime | None:
+        """基于已处理量和平均耗时估算完成时间。"""
+        if not self.started_at or self.progress >= 100:
+            return self.completed_at
+        params = self.params or {}
+        total = int(params.get("total_urls") or 0)
+        done = int(params.get("current_offset") or 0) or max(1, int(self.progress / 100 * total)) if total else 0
+        if done <= 0:
+            return None
+
+        remaining = total - done if total else 0
+        if remaining <= 0:
+            return datetime.now()
+
+        started = self.started_at.replace(tzinfo=None) if getattr(self.started_at, 'tzinfo', None) else self.started_at
+        elapsed = (datetime.now() - started).total_seconds()
+        if elapsed <= 0:
+            return None
+
+        avg_per_item = elapsed / done
+        eta_seconds = remaining * avg_per_item
+
+        # 加上剩余批次的间隔时间
+        batch_size = int(params.get("batch_size") or 6)
+        if batch_size <= 0:
+            batch_size = 6
+        remaining_batches = remaining // batch_size
+        interval_min = int(params.get("batch_interval_minutes") or 0)
+        if interval_min > 0 and remaining_batches > 0:
+            # 间隔本身包含随机增量，取均值（+5 分钟）
+            eta_seconds += remaining_batches * (interval_min + 5) * 60
+
+        return datetime.now() + timedelta(seconds=eta_seconds)
+
+    async def to_agent_readable(self) -> dict:
         """
         转换为 Agent 可读的格式 - AI Native 核心方法
         
@@ -259,12 +293,26 @@ class Task(Model):
                 else:
                     summary_parts.append(f"结果: {str(self.result)[:100]}...")
         
+        eta = self.estimate_completion_at()
+
+        # 查询关联的 context 名称
+        context_name = None
+        if self.context_id:
+            try:
+                from models.context import BrowserContext
+                ctx = await BrowserContext.filter(id=self.context_id).first()
+                if ctx:
+                    context_name = ctx.name or f"{ctx.platform}-{str(ctx.id)[:6]}"
+            except Exception:
+                pass
+
         return {
             "task_id": str(self.id),
             "task_type": self.task_type,
             "status": self.status,
             "progress": self.progress,
             "context_id": str(self.context_id) if self.context_id else None,
+            "context_name": context_name,
             "browser_url": self.browser_url,
             "screenshot_url": self.screenshot_url,
             "summary": "\n".join(summary_parts),
@@ -278,6 +326,7 @@ class Task(Model):
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "started_at": self.started_at.isoformat() if self.started_at else None,
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "estimated_completion_at": eta.isoformat() if eta else None,
             "next_step_hint": self._get_next_step_hint()
         }
 

@@ -52,11 +52,12 @@ def register_routes(app: Sanic):
         return {"status": "ok", "service": "micro-sniper"}
 
     from api.routes.contexts import contexts_bp
-    from api.routes.sniper import products_bp, sniper_bp
+    from api.routes.sniper import products_bp, sniper_bp, intel_bp
 
     app.blueprint(contexts_bp)
     app.blueprint(sniper_bp)
     app.blueprint(products_bp)
+    app.blueprint(intel_bp)
 
 
 def setup_database(app: Sanic):
@@ -87,6 +88,7 @@ async def ensure_runtime_schema():
         ALTER TABLE product_links ADD COLUMN IF NOT EXISTS tags JSONB NOT NULL DEFAULT '[]'::jsonb;
         ALTER TABLE product_links ADD COLUMN IF NOT EXISTS lock_task_id UUID NULL;
         ALTER TABLE product_links ADD COLUMN IF NOT EXISTS locked_at TIMESTAMP NULL;
+        ALTER TABLE product_details ADD COLUMN IF NOT EXISTS source VARCHAR(20) NOT NULL DEFAULT 'product';
         """
     )
 

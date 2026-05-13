@@ -146,6 +146,7 @@ def create_db_config():
                     "models.task",
                     "models.product_link",
                     "models.product_detail",
+                    "models.intel_link",
                 ],
                 "default_connection": "default"
             }

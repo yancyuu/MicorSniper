@@ -87,7 +87,7 @@ async def list_tasks(request: Request):
     tasks = await query.order_by("-created_at").limit(limit)
     return json({
         "success": True,
-        "data": [t.to_agent_readable() for t in tasks],
+        "data": [await t.to_agent_readable() for t in tasks],
     })
 
 
@@ -97,7 +97,7 @@ async def get_task(request: Request, task_id: str):
     task = await Task.filter(id=task_id).first()
     if not task:
         return json({"success": False, "error": "Task not found"}, status=404)
-    return json({"success": True, "data": task.to_agent_readable()})
+    return json({"success": True, "data": await task.to_agent_readable()})
 
 
 @sniper_bp.post("/<task_id:str>/cancel")
@@ -377,3 +377,123 @@ async def download_results(request: Request, task_id: str):
         content_type="application/json",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+# ===== 情报库 API =====
+
+intel_bp = Blueprint("intel", url_prefix="/api/intel")
+
+
+async def _merge_intel_details(links: list) -> list[dict]:
+    if not links:
+        return []
+    urls = [item.url for item in links]
+    details = await ProductDetail.filter(url__in=urls, source="intel")
+    detail_map = {item.url: item.to_dict() for item in details}
+    result = []
+    for link in links:
+        data = link.to_dict()
+        detail = detail_map.get(link.url)
+        if detail:
+            data.update({k: v for k, v in detail.items() if k not in {"id", "task_id", "created_at"}})
+            data["detail_id"] = detail["id"]
+            data["detail_task_id"] = detail["task_id"]
+            data["detail_updated_at"] = detail.get("updated_at")
+        result.append(data)
+    return result
+
+
+@intel_bp.get("/")
+async def list_intel_links(request: Request):
+    """情报库链接列表"""
+    from models.intel_link import IntelLink
+
+    offset = int(request.args.get("offset", 0))
+    limit = min(int(request.args.get("limit", 50)), 200)
+    platform = request.args.get("platform")
+    keyword = request.args.get("keyword")
+    monitor_status = request.args.get("monitor_status")
+    sort = request.args.get("sort") or "-created_at"
+
+    query = IntelLink.all()
+    if platform:
+        query = query.filter(platform=platform)
+    if keyword:
+        query = query.filter(
+            Q(title__icontains=keyword)
+            | Q(shop_name__icontains=keyword)
+            | Q(url__icontains=keyword)
+        )
+    if monitor_status:
+        query = query.filter(monitor_status=monitor_status)
+
+    total = await query.count()
+    allowed_sorts = {
+        "created_at", "-created_at",
+        "price", "-price",
+        "sales", "-sales",
+        "rank", "-rank",
+        "intel_date", "-intel_date",
+    }
+    order_field = sort if sort in allowed_sorts else "-created_at"
+    items = await query.order_by(order_field).offset(offset).limit(limit)
+    global_total = await IntelLink.all().count()
+
+    return json({
+        "success": True,
+        "data": {
+            "items": await _merge_intel_details(items),
+            "total": total,
+            "offset": offset,
+            "limit": limit,
+            "stats": {"total": global_total},
+        },
+    })
+
+
+@intel_bp.post("/import")
+async def import_intel_links(request: Request):
+    """导入链接到情报库"""
+    import uuid as uuid_mod
+    from models.intel_link import IntelLink
+    from services.sniper_tasks import _normalize_link_items, detect_platform_from_url
+
+    raw_links = (request.json or {}).get("links") or []
+    if not raw_links:
+        return json({"success": False, "error": "links is required"}, status=400)
+
+    normalized = _normalize_link_items(raw_links)
+    if not normalized:
+        return json({"success": False, "error": "No valid links found"}, status=400)
+
+    links = [
+        IntelLink(
+            task_id=uuid_mod.UUID(int=0),
+            platform=item["platform"],
+            url=item["url"],
+            raw_url=item["url"],
+            source_type=ProductLinkSourceType.QBT_IMPORT.value,
+            monitor_status=ProductLinkMonitorStatus.MONITORED.value,
+        )
+        for item in normalized
+    ]
+    await IntelLink.upsert_bulk(links)
+
+    grouped: dict[str, int] = {}
+    for item in normalized:
+        grouped[item["platform"]] = grouped.get(item["platform"], 0) + 1
+
+    return json({"success": True, "data": {"total": len(normalized), "platforms": grouped}})
+
+
+@intel_bp.delete("/<link_id:str>")
+async def delete_intel_link(request: Request, link_id: str):
+    """删除情报库链接"""
+    from models.intel_link import IntelLink
+
+    link = await IntelLink.filter(id=link_id).first()
+    if not link:
+        return json({"success": False, "error": "Intel link not found"}, status=404)
+    await ProductDetail.filter(url=link.url, source="intel").delete()
+    await link.delete()
+    return json({"success": True})

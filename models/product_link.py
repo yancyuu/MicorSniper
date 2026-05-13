@@ -14,6 +14,7 @@ from tortoise.fields import (
 class ProductLinkSourceType(str, Enum):
     KEYWORD_SEARCH = "keyword_search"
     CSV_IMPORT = "csv_import"
+    QBT_IMPORT = "qbt_import"
     MANUAL = "manual"
 
 
@@ -43,7 +44,7 @@ class ProductLink(Model):
     source_type = CharField(
         50,
         default=ProductLinkSourceType.KEYWORD_SEARCH.value,
-        description="链接来源：keyword_search, csv_import, manual",
+        description="链接来源：keyword_search, csv_import, qbt_import, manual",
     )
     monitor_status = CharField(
         50,

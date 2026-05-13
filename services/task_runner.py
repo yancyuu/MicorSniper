@@ -112,6 +112,9 @@ async def _run_task_with_context(task_id: str, ctx_id: str, runner: TaskRunner) 
         result = await runner(task, ctx)
         task = await Task.get(id=task_id)
         if task.status == TaskStatus.PENDING.value and task.not_before_at:
+            if result:
+                task.result = result
+                await task.save()
             return
         if task.status not in [
             TaskStatus.FAILED.value,

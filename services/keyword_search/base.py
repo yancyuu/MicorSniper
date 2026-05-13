@@ -184,6 +184,7 @@ class KeywordSearchService:
                 async def _on_page_done(page_items: list[dict], page_num: int, _keyword=keyword):
                     nonlocal total_count
                     if page_items:
+                        _tags = params.get("tags") or []
                         await ProductLink.upsert_bulk([
                             ProductLink(
                                 task_id=task.id,
@@ -200,6 +201,7 @@ class KeywordSearchService:
                                 main_images=[item["image"]] if item.get("image") else [],
                                 source_type=ProductLinkSourceType.KEYWORD_SEARCH.value,
                                 monitor_status=ProductLinkMonitorStatus.CANDIDATE.value,
+                                tags=_tags,
                             )
                             for item in page_items
                         ])

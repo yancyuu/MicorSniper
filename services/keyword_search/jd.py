@@ -168,7 +168,7 @@ class JdKeywordSearchService(KeywordSearchService):
     async def scroll_and_extract(self, agent, page, browser_context=None, fallback_url="") -> list[dict[str, Any]]:
         for _ in range(3):
             await page.evaluate("window.scrollTo(0, document.documentElement.scrollHeight || document.body.scrollHeight)")
-            await asyncio.sleep(1.2)
+            await asyncio.sleep(2.5)
 
         # JD 需要 skip list 去重
         skip_list = []
@@ -192,13 +192,13 @@ class JdKeywordSearchService(KeywordSearchService):
                 return false;
             }
             """)
-            await asyncio.sleep(5)
+            await asyncio.sleep(8)
             return True
         except Exception:
             pass
         try:
             await page.evaluate("window.scrollTo(0, document.documentElement.scrollHeight)")
-            await asyncio.sleep(4)
+            await asyncio.sleep(6)
         except Exception:
             pass
         return False
@@ -208,6 +208,6 @@ class JdKeywordSearchService(KeywordSearchService):
         for _attempt in range(3):
             ok = await _agent_act(agent, "点击搜索结果顶部的'销量'排序按钮")
             if ok:
-                await asyncio.sleep(5)
+                await asyncio.sleep(8)
                 break
-            await asyncio.sleep(2)
+            await asyncio.sleep(3)
