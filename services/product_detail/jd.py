@@ -223,25 +223,28 @@ async () => {
         '[class*="Desc"] img',
     ].join(',');
 
-    document.querySelectorAll(detailImageSelectors).forEach(img => {
+    function addImg(img) {
         const src = img.getAttribute('data-lazyload') || img.getAttribute('data-src') || img.getAttribute('data-original') || img.getAttribute('src') || '';
         const full = cleanImageUrl(src);
-        if (isDetailImage(full) && !imgs.includes(full)) {
+        const w = img.naturalWidth || img.width || 0;
+        const h = img.naturalHeight || img.height || 0;
+        if (isDetailImage(full) && !imgs.includes(full) && (w > 300 || h > 300)) {
             imgs.push(full);
         }
-    });
+    }
+
+    document.querySelectorAll(detailImageSelectors).forEach(addImg);
+
+    // 全页面扫描大尺寸 jfs 图片作为补充
+    if (imgs.length < 3) {
+        document.querySelectorAll('img').forEach(addImg);
+    }
 
     for (const frame of document.querySelectorAll('iframe')) {
         try {
             const doc = frame.contentDocument;
             if (!doc) continue;
-            doc.querySelectorAll('img').forEach(img => {
-                const src = img.getAttribute('data-lazyload') || img.getAttribute('data-src') || img.getAttribute('data-original') || img.getAttribute('src') || '';
-                const full = cleanImageUrl(src);
-                if (isDetailImage(full) && !imgs.includes(full)) {
-                    imgs.push(full);
-                }
-            });
+            doc.querySelectorAll('img').forEach(addImg);
         } catch (e) {}
     }
 
