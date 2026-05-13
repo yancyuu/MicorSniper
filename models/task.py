@@ -71,6 +71,10 @@ class Task(Model):
             ("created_at",),
         ]
 
+    async def _pre_save(self, using_db=None, update_fields=None):
+        self._normalize_datetime_fields()
+        await super()._pre_save(using_db, update_fields)
+
     # ===== 任务状态管理方法 =====
 
     def _normalize_datetime_fields(self):
@@ -227,38 +231,38 @@ class Task(Model):
     # ===== AI 可读格式转换 =====
 
     def estimate_completion_at(self) -> datetime | None:
-        """基于已处理量和平均耗时估算完成时间。"""
+        """基于进度百分比估算完成时间。"""
         if not self.started_at or self.progress >= 100:
             return self.completed_at
-        params = self.params or {}
-        total = int(params.get("total_urls") or 0)
-        done = int(params.get("current_offset") or 0) or max(1, int(self.progress / 100 * total)) if total else 0
-        if done <= 0:
+        if self.progress <= 0:
             return None
 
-        remaining = total - done if total else 0
-        if remaining <= 0:
-            return datetime.now()
-
-        started = self.started_at.replace(tzinfo=None) if getattr(self.started_at, 'tzinfo', None) else self.started_at
-        elapsed = (datetime.now() - started).total_seconds()
+        started = self.started_at
+        if getattr(started, 'tzinfo', None):
+            started = started.replace(tzinfo=None)
+        now = datetime.now()
+        elapsed = (now - started).total_seconds()
         if elapsed <= 0:
             return None
 
-        avg_per_item = elapsed / done
-        eta_seconds = remaining * avg_per_item
+        # 用 progress 百分比估算：已花时间 / 已完成百分比 * 剩余百分比
+        remaining_pct = 100 - self.progress
+        eta_seconds = elapsed * remaining_pct / self.progress
 
         # 加上剩余批次的间隔时间
+        params = self.params or {}
         batch_size = int(params.get("batch_size") or 6)
         if batch_size <= 0:
             batch_size = 6
+        total = int(params.get("total_urls") or 0)
+        done = max(1, int(self.progress / 100 * total)) if total else 0
+        remaining = max(0, total - done) if total else 0
         remaining_batches = remaining // batch_size
         interval_min = int(params.get("batch_interval_minutes") or 0)
         if interval_min > 0 and remaining_batches > 0:
-            # 间隔本身包含随机增量，取均值（+5 分钟）
             eta_seconds += remaining_batches * (interval_min + 5) * 60
 
-        return datetime.now() + timedelta(seconds=eta_seconds)
+        return now + timedelta(seconds=eta_seconds)
 
     async def to_agent_readable(self) -> dict:
         """
