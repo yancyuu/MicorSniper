@@ -209,7 +209,7 @@ JD_DETAIL_JS = """
             for (const script of scripts) {
                 const content = script.textContent || '';
                 // 匹配 colorSize: [{...},...] 或 "colorSize": [{...},...]
-                const colorMatch = content.match(/colorSize\s*:\s*(\[[\s\S]*?\])\s*[,}\n]/);
+                const colorMatch = content.match(/colorSize\s*:\s*(\[[\s\S]*?\])/);
                 if (colorMatch) {
                     try {
                         const colorArr = JSON.parse(colorMatch[1]);
@@ -229,7 +229,7 @@ JD_DETAIL_JS = """
                 }
                 if (skuItems.length > 0) break;
                 // 兜底: 匹配 wareSkus / skuList
-                const skuMatch = content.match(/wareSkus\s*:\s*(\[[\s\S]*?\])\s*[,}\n]/);
+                const skuMatch = content.match(/wareSkus\s*:\s*(\[[\s\S]*?\])/);
                 if (skuMatch) {
                     try {
                         const skuArr = JSON.parse(skuMatch[1]);
