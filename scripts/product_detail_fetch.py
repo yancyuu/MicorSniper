@@ -407,6 +407,15 @@ async def run_product_detail_fetch(task: Task, ctx: BrowserContext) -> dict[str,
 
                 platform = await page.evaluate(_DETECT_PLATFORM_JS)
                 await _settle_product_page(page, platform)
+                # 等待 SKU 区域异步渲染
+                if platform == "jd":
+                    try:
+                        await page.wait_for_selector(
+                            '#choose-attrs, [id^="choose-attr"], .choose-line, [class*="sku-item"]',
+                            timeout=5000,
+                        )
+                    except Exception:
+                        pass
                 await task.log_step(step, f"提取{platform}商品详情 {i + 1}/{total}", {"url": url, "platform": platform}, {}, "running")
                 provider_service = get_provider_service(platform)
                 info = await provider_service.extract(page)
