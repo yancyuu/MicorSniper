@@ -288,18 +288,14 @@ def _least_loaded_context(contexts: list[BrowserContext], load: dict[str, int], 
 
 
 def _batch_policy(platforms: list[str], monitor_mode: str) -> tuple[int, int]:
+    from config.crawl_profile import get_profile
     platform_set = set(platforms)
+    # 取列表中第一个有 profile 的平台作为代表
+    key = next((p for p in platforms if p in ("jd", "taobao", "tmall")), "default")
+    p = get_profile(key)
     if monitor_mode == "detail":
-        if "jd" in platform_set:
-            return 5, 15
-        return 8, 5
-    if "jd" in platform_set:
-        return 30, 30
-    if platform_set & {"taobao", "tmall"}:
-        return 120, 15
-    if "1688" in platform_set:
-        return 80, 15
-    return 80, 15
+        return p["detail_batch_size"], p["detail_batch_interval"]
+    return p["price_batch_size"], p["price_batch_interval"]
 
 
 async def _claim_context(ctx: BrowserContext) -> BrowserContext:
