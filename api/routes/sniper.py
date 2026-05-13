@@ -206,6 +206,8 @@ async def get_screenshot(request: Request, task_id: str):
 @sniper_bp.get("/<task_id:str>/results")
 async def get_results(request: Request, task_id: str):
     """获取任务采集的商品链接（分页）"""
+    from models.intel_link import IntelLink
+
     task = await Task.filter(id=task_id).first()
     if not task:
         return json({"success": False, "error": "Task not found"}, status=404)
@@ -215,11 +217,15 @@ async def get_results(request: Request, task_id: str):
     platform = request.args.get("platform")
     keyword = request.args.get("keyword")
 
-    query = ProductLink.filter(task_id=task_id)
+    is_intel = (task.params or {}).get("source") == "intel"
+    LinkModel = IntelLink if is_intel else ProductLink
+    merge_fn = _merge_intel_details if is_intel else _merge_product_details
+
+    query = LinkModel.filter(task_id=task_id)
     if platform:
         query = query.filter(platform=platform)
     if keyword:
-        query = query.filter(keyword=keyword)
+        query = query.filter(title__icontains=keyword)
 
     total = await query.count()
     items = await query.order_by("created_at").offset(offset).limit(limit)
@@ -227,7 +233,7 @@ async def get_results(request: Request, task_id: str):
     return json({
         "success": True,
         "data": {
-            "items": await _merge_product_details(items),
+            "items": await merge_fn(items),
             "total": total,
             "offset": offset,
             "limit": limit,
@@ -357,15 +363,22 @@ async def download_results(request: Request, task_id: str):
 
     platform = request.args.get("platform")
     keyword = request.args.get("keyword")
-    query = ProductLink.filter(task_id=task_id)
+
+    from models.intel_link import IntelLink
+
+    is_intel = (task.params or {}).get("source") == "intel"
+    LinkModel = IntelLink if is_intel else ProductLink
+    merge_fn = _merge_intel_details if is_intel else _merge_product_details
+
+    query = LinkModel.filter(task_id=task_id)
     if platform:
         query = query.filter(platform=platform)
     if keyword:
-        query = query.filter(keyword=keyword)
+        query = query.filter(title__icontains=keyword)
 
     items = await query.order_by("created_at")
     if items:
-        payload = await _merge_product_details(items)
+        payload = await merge_fn(items)
     else:
         result = task.result if isinstance(task.result, dict) else {}
         payload = result.get("results") or result.get("items") or []

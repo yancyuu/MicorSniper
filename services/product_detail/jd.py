@@ -55,8 +55,25 @@ JD_DETAIL_JS = """
     }
 
     // 原价
-    const origEl = document.querySelector('.p-price del, [class*="orig-price"]');
-    result.original_price = normalizePrice(origEl ? origEl.textContent : '');
+    result.original_price = '';
+    const origEl = document.querySelector('.p-price del, [class*="orig-price"], [class*="J-original-price"], del[class*="price"]');
+    if (origEl) {
+        result.original_price = normalizePrice(origEl.textContent);
+    }
+    if (!result.original_price) {
+        const priceM = bodyText.match(/(?:参考价|原价|定价|定价|吊牌价|厂商指导价|京东价)[：:\\s]*[¥￥]?\\s*([\\d,.]+)/);
+        if (priceM) result.original_price = normalizePrice(priceM[1]);
+    }
+    // 如果价格旁边有划线价
+    if (!result.original_price && result.price) {
+        const allPrices = bodyText.match(/[¥￥]\\s*([\\d,.]+)/g);
+        if (allPrices && allPrices.length >= 2) {
+            const prices = allPrices.map(p => normalizePrice(p)).filter(Boolean).sort((a, b) => Number(b) - Number(a));
+            if (prices.length >= 2 && Number(prices[0]) > Number(result.price)) {
+                result.original_price = prices[0];
+            }
+        }
+    }
 
     // 销量
     result.sales = firstText([
@@ -84,11 +101,20 @@ JD_DETAIL_JS = """
         'a[href*="mall.jd.com"]',
         'a[href*="shop.jd.com"]',
         '[class*="seller"] a',
+        '[class*="shop"] a',
+        '[class*="Store"]',
     ]).slice(0, 200);
     if (!result.shop_name) {
         const m = bodyText.match(/店铺[:：]?\\s*(.{2,60}?)(?:\\s+联系客服|\\s+进入店铺|\\s+关注店铺)/);
         result.shop_name = m ? cleanText(m[1]).slice(0, 200) : '';
     }
+    // Fallback: match from body text patterns like "XXX京东自营旗舰店"
+    if (!result.shop_name) {
+        const m2 = bodyText.match(/([^\\s]{2,40}?(?:旗舰店|专营店|官方店|专卖店|自营旗舰店|自营店))/);
+        if (m2) result.shop_name = m2[1].slice(0, 200);
+    }
+    // 清理店铺名：去掉"进店逛逛"等后缀
+    result.shop_name = result.shop_name.replace(/[\\s]*进店逛逛.*/, '').replace(/[\\s]*关注店铺.*/, '').replace(/[\\s]*精选镇店.*/, '').replace(/[\\s]*联系客服.*/, '').trim();
     const shopLink = document.querySelector('[class*="shopName"] a, [class*="shop-name"] a, .J-hove-wrap .name a, a[href*="shop.jd"], a[href*="mall.jd"]');
     result.shop_url = shopLink ? shopLink.href : '';
 
@@ -170,10 +196,12 @@ async () => {
 
     function isDetailImage(url) {
         if (!url || !url.startsWith('http')) return false;
-        if (!/\\.(jpg|jpeg|png|webp|avif|gif)(\\?|$)/i.test(url)) return false;
-        const blocked = ['blank', 'spacer', 'shaidan', 's300x300', 's228x228', 's64x64', 's48x48', 'default.image', 'imagetools', '/img/'];
+        if (!/\.(jpg|jpeg|png|webp|avif|gif)(\.\w+)?(\?|$)/i.test(url)) return false;
+        const blocked = ['blank', 'spacer', 'shaidan', 's300x300', 's228x228', 's64x64', 's48x48', 's128x128', 's200x200', 's100x100', 's50x50', 'default.image', 'avatar', 'logo', 'icon', 'badge'];
         if (blocked.some(key => url.includes(key))) return false;
-        return url.includes('popWareDetail') || url.includes('/wareDetail/') || url.includes('/sku/');
+        if (url.includes('popWareDetail') || url.includes('/wareDetail/') || url.includes('/sku/')) return true;
+        if (url.includes('/jfs/')) return true;
+        return false;
     }
 
     async function wait(ms) {
@@ -219,7 +247,7 @@ async () => {
 
     if (imgs.length === 0) {
         const html = document.documentElement.innerHTML;
-        const imageUrlPattern = new RegExp('https?://[^"\\\\\\'<>\\\\s]+(?:popWareDetail|wareDetail|sku)[^"\\\\\\'<>\\\\s]+\\\\.(?:jpg|jpeg|png|webp|avif|gif)', 'g');
+        const imageUrlPattern = new RegExp('https?://[^"\\\\\\'<>\\\\s]+(?:popWareDetail|wareDetail|sku|jfs/t)[^"\\\\\\'<>\\\\s]+\\\\.(?:jpg|jpeg|png|webp|avif|gif)(?:\\\\.\\\\w+)?', 'g');
         const matches = html.match(imageUrlPattern) || [];
         for (const src of matches) {
             const full = cleanImageUrl(src);
