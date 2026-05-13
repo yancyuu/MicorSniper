@@ -76,8 +76,10 @@ async def _close_popups_fast(page) -> None:
 
 
 async def _settle_product_page(page, platform: str) -> None:
-    delay = 2.5 if platform == "jd" else 0.8
-    final_delay = 3.0 if platform == "jd" else 1.0
+    from config.crawl_profile import get_profile
+    _p = get_profile(platform)
+    delay = _p["detail_scroll_delay"]
+    final_delay = _p["detail_scroll_final"]
     for y in [300, 900, 1500, 2300, 3200]:
         await page.evaluate("(y) => window.scrollTo(0, y)", y)
         await asyncio.sleep(delay)
@@ -252,7 +254,10 @@ async def run_product_detail_fetch(task: Task, ctx: BrowserContext) -> dict[str,
 
     all_urls = list(urls)
     max_batch_size = int(params.get("batch_size") or len(all_urls))
-    batch_size = random.randint(5, min(8, max_batch_size)) if max_batch_size > 5 else max_batch_size
+    from config.crawl_profile import get_profile
+    _primary = next((p for url in urls for p in ("jd", "taobao") if p in (urlparse(url).hostname or "")), "default")
+    _p = get_profile(_primary)
+    batch_size = random.randint(_p["detail_batch_min"], min(_p["detail_batch_max"], max_batch_size)) if max_batch_size > _p["detail_batch_min"] else max_batch_size
 
     # 平台差异化批次：淘宝/天猫更激进，JD 保持保守
     primary_platforms = set()
@@ -262,12 +267,12 @@ async def run_product_detail_fetch(task: Task, ctx: BrowserContext) -> dict[str,
             primary_platforms.add("jd")
         elif "taobao.com" in host or "tmall.com" in host or "tmall.hk" in host:
             primary_platforms.add("taobao")
-    if "jd" not in primary_platforms and max_batch_size > 8:
-        batch_size = random.randint(8, min(12, max_batch_size))
+    if "jd" not in primary_platforms and max_batch_size > _p["detail_fast_batch_min"]:
+        batch_size = random.randint(_p["detail_fast_batch_min"], min(_p["detail_fast_batch_max"], max_batch_size))
     current_offset = int(params.get("current_offset") or 0)
     batch_index = int(params.get("batch_index") or 1)
     interval_minutes = int(params.get("batch_interval_minutes") or 0)
-    interval_minutes = interval_minutes + int(random.uniform(0, 10)) if interval_minutes else 0
+    interval_minutes = interval_minutes + int(random.uniform(0, _p["batch_jitter_minutes"])) if interval_minutes else 0
     urls = all_urls[current_offset : current_offset + batch_size]
     if not urls:
         await task.complete({"total": 0, "success": 0, "failed": 0, "message": "No remaining URLs"})
@@ -424,7 +429,8 @@ async def run_product_detail_fetch(task: Task, ctx: BrowserContext) -> dict[str,
                 info["url"] = url
 
                 update_data = {"task_id": task.id, "platform": platform}
-                for field in ["title", "price", "sales", "shop_name", "image"]:
+                for field in ["title", "price", "original_price", "sales", "shop_name",
+                              "image", "location", "sku_info", "main_images", "detail_images"]:
                     value = info.get(field)
                     if value:
                         update_data[field] = value

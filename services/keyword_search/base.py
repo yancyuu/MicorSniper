@@ -70,8 +70,10 @@ class KeywordSearchService:
         max_pages = int(params.get("max_pages") or _DEFAULT_MAX_PAGES)
         title_required = params.get("title_required", "")
         title_blacklist = params.get("title_blacklist", [])
-        pages_per_batch = int(params.get("pages_per_batch") or 5)
-        batch_interval_minutes = int(params.get("batch_interval_minutes") or 5)
+        from config.crawl_profile import get_profile
+        _cp = get_profile(getattr(self, "platform", "default"))
+        pages_per_batch = int(params.get("pages_per_batch") or _cp["search_pages_per_batch"])
+        batch_interval_minutes = int(params.get("batch_interval_minutes") or _cp["search_batch_interval"])
 
         if not keywords:
             await task.fail("No keywords provided")
@@ -281,7 +283,7 @@ class KeywordSearchService:
                 has_more = True
 
             if has_more and keyword_count > 0:
-                delay = batch_interval_minutes + int(random.uniform(0, 10))
+                delay = batch_interval_minutes + int(random.uniform(0, _cp["batch_jitter_minutes"]))
                 p = task.params or {}
                 p["_batch_keyword_index"] = keyword_index if not result["keyword_done"] else keyword_index + 1
                 p["pages_per_batch"] = pages_per_batch
