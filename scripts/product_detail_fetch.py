@@ -424,10 +424,7 @@ async def run_product_detail_fetch(task: Task, ctx: BrowserContext) -> dict[str,
                 if platform == "jd" and not info.get("sku_info"):
                     try:
                         import re as _re
-                        import aiohttp
-                        async with aiohttp.ClientSession() as _sess:
-                            async with _sess.get(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/125.0.0.0"}) as _resp:
-                                _html = await _resp.text()
+                        _html = await page.evaluate("async () => { const r = await fetch(location.href); return await r.text(); }")
                         _m = _re.search(r'colorSize\s*:\s*(\[[\s\S]*?\])', _html)
                         if _m:
                             _items = json.loads(_m.group(1))
