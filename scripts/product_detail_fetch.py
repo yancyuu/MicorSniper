@@ -394,11 +394,6 @@ async def run_product_detail_fetch(task: Task, ctx: BrowserContext) -> dict[str,
                     await task.log_step(step, f"抓取商品详情失败 {i + 1}/{total}", {"url": url}, {"error": error}, "failed")
                     continue
                 response = await asyncio.wait_for(page.goto(url, wait_until="domcontentloaded", timeout=45000), timeout=50)
-                raw_html = ""
-                try:
-                    raw_html = await response.text()
-                except Exception:
-                    pass
                 await asyncio.sleep(3)
                 await _close_popups_fast(page)
                 await asyncio.sleep(1)
@@ -425,11 +420,15 @@ async def run_product_detail_fetch(task: Task, ctx: BrowserContext) -> dict[str,
                 provider_service = get_provider_service(platform)
                 info = await provider_service.extract(page)
 
-                # JD SKU 兜底：JS 提取不到时从原始 HTTP 响应解析 colorSize
-                if platform == "jd" and not info.get("sku_info") and raw_html:
+                # JD SKU 兜底：JS 提取不到时用独立HTTP请求拿原始HTML解析colorSize
+                if platform == "jd" and not info.get("sku_info"):
                     try:
                         import re as _re
-                        _m = _re.search(r'colorSize\s*:\s*(\[[\s\S]*?\])', raw_html)
+                        import aiohttp
+                        async with aiohttp.ClientSession() as _sess:
+                            async with _sess.get(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/125.0.0.0"}) as _resp:
+                                _html = await _resp.text()
+                        _m = _re.search(r'colorSize\s*:\s*(\[[\s\S]*?\])', _html)
                         if _m:
                             _items = json.loads(_m.group(1))
                             _attrs: dict[str, set[str]] = {}
