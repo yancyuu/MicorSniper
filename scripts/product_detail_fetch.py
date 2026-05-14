@@ -21,6 +21,7 @@ from agentbay import (
     BrowserFingerprint,
     BrowserOption,
     BrowserScreen,
+    ExtractOptions,
     CreateSessionParams,
 )
 from config.settings import global_settings
@@ -32,6 +33,13 @@ from models.task import Task, TaskStatus
 from services.product_detail import get_provider_service
 from utils.login_check import check_login_status, login_failed_message
 from utils.logger import logger
+
+from pydantic import BaseModel
+
+
+class SkuInfo(BaseModel):
+    """Agent 视觉提取 SKU 的返回结构。"""
+    items: dict[str, list[str]] = {}
 
 
 async def _dismiss_dialog(dialog) -> None:
@@ -420,21 +428,23 @@ async def run_product_detail_fetch(task: Task, ctx: BrowserContext) -> dict[str,
                 provider_service = get_provider_service(platform)
                 info = await provider_service.extract(page)
 
-                # SKU 兜底：JS 提取不到时用 agent 视觉识别
+                # SKU：用 agent 视觉提取，不依赖 JS/DOM
                 if not info.get("sku_info"):
                     try:
-                        ret = await agent.act(ActOptions(
-                            action="查看页面上商品的SKU规格选项（如颜色、版本、尺码等），列出所有可选的规格名称和对应的值。只返回JSON格式，例如：{\"款式\": [\"红色-蓝\", \"红色-金\", \"黑色\"]}。如果没有SKU选项则返回{}"
-                        ))
-                        if ret.success and ret.message:
-                            import re as _re
-                            _m = _re.search(r'\{[^{}]+\}', ret.message)
-                            if _m:
-                                _parsed = json.loads(_m.group(0))
-                                sku_list = [f"{k}: {' / '.join(v) if isinstance(v, list) else str(v)}" for k, v in _parsed.items()]
-                                if sku_list:
-                                    info["sku_info"] = sku_list
-                                    logger.info(f"[product_detail_fetch] SKU from agent vision: {sku_list}")
+                        page = _get_page(bc) or page
+                        ok, sku_result = await agent.extract(
+                            ExtractOptions(
+                                instruction="提取页面上商品的SKU规格选项（如颜色、版本、尺码等）。返回每个规格名称及其所有可选值。如果页面没有SKU选项则返回空。",
+                                schema=SkuInfo,
+                                use_vision=True,
+                            ),
+                            page=page,
+                        )
+                        if ok and sku_result and sku_result.items:
+                            info["sku_info"] = [
+                                f"{k}: {' / '.join(v)}" for k, v in sku_result.items.items() if v
+                            ]
+                            logger.info(f"[product_detail_fetch] SKU from agent vision: {info['sku_info']}")
                     except Exception as e:
                         logger.warning(f"[product_detail_fetch] SKU agent vision failed: {e}")
 
