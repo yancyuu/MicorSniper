@@ -420,6 +420,23 @@ async def run_product_detail_fetch(task: Task, ctx: BrowserContext) -> dict[str,
                 provider_service = get_provider_service(platform)
                 info = await provider_service.extract(page)
 
+                # JD SKU 兜底：JS 提取不到时从页面 HTML 直接解析 colorSize
+                if platform == "jd" and not info.get("sku_info"):
+                    try:
+                        import re as _re
+                        _html = await page.content()
+                        _m = _re.search(r'colorSize\s*:\s*(\[[\s\S]*?\])', _html)
+                        if _m:
+                            _items = json.loads(_m.group(1))
+                            _attrs: dict[str, set[str]] = {}
+                            for _it in _items:
+                                for _k, _v in _it.items():
+                                    if _k != "skuId":
+                                        _attrs.setdefault(_k, set()).add(str(_v))
+                            info["sku_info"] = [f"{k}: {' / '.join(sorted(v))}" for k, v in _attrs.items() if v]
+                    except Exception:
+                        pass
+
                 await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
                 await asyncio.sleep(2)
 
