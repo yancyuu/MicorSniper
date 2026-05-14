@@ -420,22 +420,23 @@ async def run_product_detail_fetch(task: Task, ctx: BrowserContext) -> dict[str,
                 provider_service = get_provider_service(platform)
                 info = await provider_service.extract(page)
 
-                # JD SKU 兜底：JS 提取不到时用独立HTTP请求拿原始HTML解析colorSize
-                if platform == "jd" and not info.get("sku_info"):
+                # SKU 兜底：JS 提取不到时用 agent 视觉识别
+                if not info.get("sku_info"):
                     try:
-                        import re as _re
-                        _html = await page.evaluate("async () => { const r = await fetch(location.href); return await r.text(); }")
-                        _m = _re.search(r'colorSize\s*:\s*(\[[\s\S]*?\])', _html)
-                        if _m:
-                            _items = json.loads(_m.group(1))
-                            _attrs: dict[str, set[str]] = {}
-                            for _it in _items:
-                                for _k, _v in _it.items():
-                                    if _k != "skuId":
-                                        _attrs.setdefault(_k, set()).add(str(_v))
-                            info["sku_info"] = [f"{k}: {' / '.join(sorted(v))}" for k, v in _attrs.items() if v]
-                    except Exception:
-                        pass
+                        ret = await agent.act(ActOptions(
+                            action="查看页面上商品的SKU规格选项（如颜色、版本、尺码等），列出所有可选的规格名称和对应的值。只返回JSON格式，例如：{\"款式\": [\"红色-蓝\", \"红色-金\", \"黑色\"]}。如果没有SKU选项则返回{}"
+                        ))
+                        if ret.success and ret.message:
+                            import re as _re
+                            _m = _re.search(r'\{[^{}]+\}', ret.message)
+                            if _m:
+                                _parsed = json.loads(_m.group(0))
+                                sku_list = [f"{k}: {' / '.join(v) if isinstance(v, list) else str(v)}" for k, v in _parsed.items()]
+                                if sku_list:
+                                    info["sku_info"] = sku_list
+                                    logger.info(f"[product_detail_fetch] SKU from agent vision: {sku_list}")
+                    except Exception as e:
+                        logger.warning(f"[product_detail_fetch] SKU agent vision failed: {e}")
 
                 await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
                 await asyncio.sleep(2)
