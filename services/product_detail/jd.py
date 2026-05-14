@@ -202,56 +202,7 @@ JD_DETAIL_JS = """
         });
     }
 
-    // Strategy 4: 从内联 script 提取 colorSize（JS 变量赋值格式）
-    if (skuItems.length === 0) {
-        try {
-            const scripts = document.querySelectorAll('script:not([src])');
-            for (const script of scripts) {
-                const content = script.textContent || '';
-                // 匹配 colorSize: [{...},...] 或 "colorSize": [{...},...]
-                const colorMatch = content.match(/colorSize\s*:\s*(\[[\s\S]*?\])/);
-                if (colorMatch) {
-                    try {
-                        const colorArr = JSON.parse(colorMatch[1]);
-                        // 收集每个对象中除 skuId 外的所有 key 作为属性名
-                        const attrMap = {};
-                        colorArr.forEach(item => {
-                            Object.keys(item).forEach(key => {
-                                if (key === 'skuId') return;
-                                if (!attrMap[key]) attrMap[key] = new Set();
-                                attrMap[key].add(item[key]);
-                            });
-                        });
-                        for (const [label, vals] of Object.entries(attrMap)) {
-                            addSkuItem(label, [...vals]);
-                        }
-                    } catch(e) {}
-                }
-                if (skuItems.length > 0) break;
-                // 兜底: 匹配 wareSkus / skuList
-                const skuMatch = content.match(/wareSkus\s*:\s*(\[[\s\S]*?\])/);
-                if (skuMatch) {
-                    try {
-                        const skuArr = JSON.parse(skuMatch[1]);
-                        const attrMap = {};
-                        skuArr.forEach(item => {
-                            Object.keys(item).forEach(key => {
-                                if (key === 'skuId') return;
-                                if (!attrMap[key]) attrMap[key] = new Set();
-                                attrMap[key].add(item[key]);
-                            });
-                        });
-                        for (const [label, vals] of Object.entries(attrMap)) {
-                            addSkuItem(label, [...vals]);
-                        }
-                    } catch(e) {}
-                }
-                if (skuItems.length > 0) break;
-            }
-        } catch(e) {}
-    }
-
-    // Strategy 5: 正文正则兜底
+    // Strategy 4: 正文正则兜底
     if (skuItems.length === 0) {
         const skuText = bodyText.match(/(颜色|版本|规格|尺码|套装|型号|内存|存储|配置)[:：]?\\s*(.{2,160}?)(?:\\s+配送|\\s+增值|\\s+白条|\\s+服务|\\s+购买|\\s+加入)/);
         if (skuText) skuItems.push(cleanText(`${skuText[1]}: ${skuText[2]}`));
