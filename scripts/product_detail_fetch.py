@@ -715,6 +715,24 @@ async def _run_standalone() -> None:
                 provider_service = get_provider_service(platform)
                 info = await provider_service.extract(page)
 
+                # SKU 兜底：用 agent 视觉识别
+                if not info.get("sku_info"):
+                    try:
+                        ok, sku_result = await agent.extract(
+                            ExtractOptions(
+                                instruction="提取页面上商品的SKU规格选项（如颜色、版本、尺码等）。返回每个规格名称及其所有可选值。如果页面没有SKU选项则返回空。",
+                                schema=SkuInfo,
+                                use_vision=True,
+                            ),
+                            page=page,
+                        )
+                        if ok and sku_result and sku_result.items:
+                            info["sku_info"] = [
+                                f"{k}: {' / '.join(v)}" for k, v in sku_result.items.items() if v
+                            ]
+                    except Exception:
+                        pass
+
                 await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
                 await asyncio.sleep(2)
 
