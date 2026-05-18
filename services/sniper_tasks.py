@@ -186,7 +186,7 @@ def _has_login_cookie(platform: str, cookies: list[dict]) -> bool:
         "tmall": {"unb", "_nk_", "tracknick", "lgc", "cookie17"},
         "1688": {"member_login", "ali_apache_id", "_csrf_token"},
         "jd": {"pin", "thor", "unick", "ceshi3.com"},
-        "xiaohongshu": {"web_session", "webId", "xsecappid"},
+        "xiaohongshu": {"web_session"},
         "douyin": {"sessionid", "sid_guard", "uid_tt"},
         "pdd": {"pdd_user_id", "PDDAccessToken", "api_uid"},
         "unknown": set(),

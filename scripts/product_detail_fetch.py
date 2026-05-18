@@ -263,7 +263,7 @@ async def run_product_detail_fetch(task: Task, ctx: BrowserContext) -> dict[str,
     all_urls = list(urls)
     max_batch_size = int(params.get("batch_size") or len(all_urls))
     from config.crawl_profile import get_profile
-    _primary = next((p for url in urls for p in ("jd", "taobao") if p in (urlparse(url).hostname or "")), "default")
+    _primary = next((p for url in urls for p in ("jd", "taobao", "xiaohongshu") if p in (urlparse(url).hostname or "")), "default")
     _p = get_profile(_primary)
     batch_size = random.randint(_p["detail_batch_min"], min(_p["detail_batch_max"], max_batch_size)) if max_batch_size > _p["detail_batch_min"] else max_batch_size
 
@@ -275,6 +275,8 @@ async def run_product_detail_fetch(task: Task, ctx: BrowserContext) -> dict[str,
             primary_platforms.add("jd")
         elif "taobao.com" in host or "tmall.com" in host or "tmall.hk" in host:
             primary_platforms.add("taobao")
+        elif "xiaohongshu.com" in host or "xhslink.com" in host:
+            primary_platforms.add("xiaohongshu")
     if "jd" not in primary_platforms and max_batch_size > _p["detail_fast_batch_min"]:
         batch_size = random.randint(_p["detail_fast_batch_min"], min(_p["detail_fast_batch_max"], max_batch_size))
     current_offset = int(params.get("current_offset") or 0)
@@ -365,6 +367,8 @@ async def run_product_detail_fetch(task: Task, ctx: BrowserContext) -> dict[str,
                 platforms_in_batch.append("taobao")
             elif "1688.com" in host:
                 platforms_in_batch.append("1688")
+            elif "xiaohongshu.com" in host or "xhslink.com" in host:
+                platforms_in_batch.append("xiaohongshu")
         primary_platform = platforms_in_batch[0] if platforms_in_batch else "unknown"
 
         login_result = await check_login_status(agent, primary_platform)

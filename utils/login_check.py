@@ -14,6 +14,7 @@ _PLATFORM_HOME_URLS = {
     "taobao": "https://www.taobao.com",
     "tmall": "https://www.taobao.com",
     "1688": "https://www.1688.com",
+    "xiaohongshu": "https://www.xiaohongshu.com/explore",
 }
 
 _PLATFORM_LOGIN_PROMPTS = {
@@ -21,6 +22,7 @@ _PLATFORM_LOGIN_PROMPTS = {
     "taobao": "请查看当前页面，判断淘宝网站是否处于已登录状态。已登录的标志是页面顶部显示用户昵称、'亲，xxx'、或用户头像区域。未登录则显示'亲，请登录'、'免费注册'等链接。",
     "tmall": "请查看当前页面，判断淘宝网站是否处于已登录状态。已登录的标志是页面顶部显示用户昵称、'亲，xxx'、或用户头像区域。未登录则显示'亲，请登录'、'免费注册'等链接。",
     "1688": "请查看当前页面，判断1688网站是否处于已登录状态。已登录的标志是页面顶部显示公司名、用户名、或'已登录'提示。未登录则显示'请登录'、'免费注册'、'加入1688'等链接。",
+    "xiaohongshu": "请查看当前页面，判断小红书网站是否处于已登录状态。已登录的标志是页面出现用户头像、个人入口、发布入口可用，或不再展示扫码/手机号登录弹窗。未登录则显示登录弹窗、'登录后查看更多内容'、扫码登录或手机号登录入口。",
 }
 
 
@@ -87,7 +89,13 @@ async def check_login_status(agent, platform: str, timeout: int = 30) -> LoginCh
         return LoginCheckResult(logged_in=False, platform=platform, reason=repr(e))
 
 
-_PLATFORM_LABELS = {"jd": "京东", "taobao": "淘宝", "tmall": "天猫", "1688": "1688"}
+_PLATFORM_LABELS = {
+    "jd": "京东",
+    "taobao": "淘宝",
+    "tmall": "天猫",
+    "1688": "1688",
+    "xiaohongshu": "小红书",
+}
 
 
 def login_failed_message(platform: str) -> str:
