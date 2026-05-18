@@ -7,7 +7,7 @@ This file guides agents that modify crawler code in this repository. User-facing
 Micro-Sniper has two crawler modes:
 
 - **Service mode**: `poetry run python main.py`. This is the production path for scheduled and batch jobs. It may use Playwright/CDP, `page.evaluate()`, and platform-specific services for speed and stability.
-- **Local CLI mode**: `poetry run craw ...`. This is the exploration path. It should prefer AgentBay `agent.act()` and `agent.extract()` and avoid hardcoded third-party DOM rules.
+- **Local CLI mode**: `craw ...` after installing the local shim with `scripts/install_craw_cli.sh`. This is the exploration path. It should prefer AgentBay `agent.act()` and `agent.extract()` and avoid hardcoded third-party DOM rules.
 
 Do not mix the two without a reason. If the user asks for generic crawling, comments, unknown sites, or exploratory behavior, work in CLI mode.
 
@@ -59,6 +59,7 @@ For links:
 - `url` must be a real `http(s)` URL or an in-site path starting with `/`.
 - Never store `dom_index:*` or element indexes in `url`.
 - If AgentBay returns an element reference only, store it in `fields.dom_ref` and let `next_action` / `agent act` open it before extracting the real URL.
+- Do not store CSS selectors, XPath, or locator hints like `h1 + p` as business fields. If needed for debugging, keep them as `fields.locator_hint`, not `fields.dom_ref`.
 
 For stable IDs:
 
@@ -88,7 +89,8 @@ For context issues:
 CLI mode can still trigger platform risk.
 
 - Default `--max-steps` should remain small.
-- Expose and use `--extract-timeout` for heavy pages instead of letting extract exceptions crash the command.
+- Default Agent extract timeout should be 120 seconds. Expose `--extract-timeout` for heavier pages instead of letting extract exceptions crash the command.
+- Keep `--extract-mode both` as the default. Use `text` to reduce visual overhead, or `vision` when text extraction returns DOM artifacts.
 - Prefer explicit user goals over broad prompts.
 - Stop or surface diagnosis on login, captcha, or verification prompts.
 - Avoid unbounded goals like "get all comments" unless there is a step limit and the user accepts the risk.
@@ -104,7 +106,7 @@ Required behavior for crawl loops:
 - Log the failed round to `Task.logs`.
 - Run a generic recovery action with `agent.act()`.
 - Continue to the next round until `done=true` or `--max-steps` is reached.
-- Let users raise the per-round timeout with `--extract-timeout`.
+- Let users raise the per-round timeout with `--extract-timeout` when 120 seconds is not enough.
 
 Use both text and vision extraction when supported by the SDK:
 
@@ -120,7 +122,9 @@ ExtractOptions(
 
 ## Where To Put Code
 
-- CLI entry: `scripts/crawler_cli.py`
+- CLI entry: `crawler_cli/cmd/root.py`
+- CLI command modules: `crawler_cli/cmd/`
+- CLI shared internals: `crawler_cli/internal/`
 - Production task dispatch: `services/task_runner.py`
 - Business task orchestration: `services/sniper_tasks.py`
 - Platform keyword services: `services/keyword_search/`
@@ -134,19 +138,21 @@ When adding CLI features, prefer small subcommands over expanding one command wi
 After changing CLI code, run:
 
 ```bash
-python3 -m py_compile scripts/crawler_cli.py
-poetry run craw --help
-poetry run craw agent --help
+python3 -m py_compile crawler_cli/cmd/root.py crawler_cli/cmd/*.py crawler_cli/internal/*.py
+bash scripts/install_craw_cli.sh
+craw --help
+craw agent --help
+python -m crawler_cli.cmd.root --help
 ```
 
 For a safe smoke test:
 
 ```bash
-poetry run craw agent extract \
+craw agent extract \
   --context <context-id> \
   --url https://example.com \
   --goal "提取页面标题和主要说明，作为一条 text 记录" \
-  --timeout 30
+  --timeout 120
 ```
 
 Do not use a high-risk platform page as the default smoke test.

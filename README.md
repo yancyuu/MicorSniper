@@ -178,30 +178,36 @@ curl http://localhost:8000/health
 项目同时支持两种运行模式：
 
 - **服务模式**：`poetry run python main.py`，面向稳定生产任务，优先使用 Playwright/CDP 和 `page.evaluate()` 快速提取。
-- **CLI 模式**：`poetry run craw ...`，面向探索、诊断和未知页面，优先使用 AgentBay `act` / `extract`，不在 CLI 中写死第三方页面 DOM 规则。
+- **CLI 模式**：安装本地 shim 后直接执行 `craw ...`，面向探索、诊断和未知页面，优先使用 AgentBay `act` / `extract`，不在 CLI 中写死第三方页面 DOM 规则。
 
-安装或刷新 CLI 入口：
+安装或刷新 CLI 入口。脚本会执行 `poetry install`，并在 `~/.local/bin/craw` 创建一个 shim；依赖仍由 Poetry 管理，不会污染系统 Python。
 
 ```bash
-poetry install
-poetry run craw --help
+bash scripts/install_craw_cli.sh
+craw --help
+```
+
+如果 shell 提示 `craw: command not found`，把 `~/.local/bin` 加到 PATH：
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
 ```
 
 ### 上下文诊断
 
 ```bash
-poetry run craw context list
-poetry run craw context doctor <context-id>
-poetry run craw context verify <context-id> --platform xiaohongshu
-poetry run craw context status <context-id>
-poetry run craw context status <context-id> --set disabled
-poetry run craw context status <context-id> --set logged_in
+craw context list
+craw context doctor <context-id>
+craw context verify <context-id> --platform xiaohongshu
+craw context status <context-id>
+craw context status <context-id> --set disabled
+craw context status <context-id> --set logged_in
 ```
 
 `context-id` 指业务库里的 `BrowserContext.id`，例如：
 
 ```bash
-poetry run craw context doctor 0159ed18-252b-4f72-a293-9454f3abeeb2
+craw context doctor 0159ed18-252b-4f72-a293-9454f3abeeb2
 ```
 
 ### AgentBay 通用模式
@@ -215,7 +221,7 @@ CLI 模式把操作和抽取拆成三个层次：
 单次动作：
 
 ```bash
-poetry run craw agent act \
+craw agent act \
   --context <context-id> \
   --url https://www.xiaohongshu.com/explore \
   --action "搜索 SKG 按摩仪，并进入相关商品或笔记结果页"
@@ -224,23 +230,24 @@ poetry run craw agent act \
 保留会话，动作后继续抽取当前页面：
 
 ```bash
-poetry run craw agent act \
+craw agent act \
   --context <context-id> \
   --url https://www.xiaohongshu.com/explore \
   --action "搜索 SKG 按摩仪，并进入相关商品或笔记结果页" \
   --keep-session
 
-poetry run craw agent extract \
+craw agent extract \
   --session-id <session-id> \
-  --goal "提取当前页面可见的标题、链接、价格、店铺或账号信息"
+  --goal "提取当前页面可见的标题、链接、价格、店铺或账号信息" \
+  --extract-mode both
 
-poetry run craw agent close <session-id>
+craw agent close <session-id>
 ```
 
 全自动循环：
 
 ```bash
-poetry run craw agent crawl \
+craw agent crawl \
   --context <context-id> \
   --start-url https://www.xiaohongshu.com/explore \
   --goal "搜索 SKG 按摩仪并提取商品标题、价格、链接、店铺名" \
@@ -250,12 +257,13 @@ poetry run craw agent crawl \
 评论采集示例：
 
 ```bash
-poetry run craw agent crawl \
+craw agent crawl \
   --context <context-id> \
   --start-url "https://www.xiaohongshu.com/explore/<note-id>" \
   --goal "打开当前笔记的评论区，尽可能提取可见评论和回复。每条评论包含作者、正文、时间、点赞数；如需要请滚动加载更多评论" \
   --max-steps 8 \
-  --extract-timeout 90
+  --extract-mode both \
+  --extract-timeout 120
 ```
 
 Agent 抽取结果使用通用 `records` 结构，不绑定商品字段。评论会以 `record_type=comment` 或 `record_type=reply` 输出，正文在 `text`，作者在 `author`，点赞/评论数等放在 `metrics`。
@@ -265,8 +273,8 @@ Agent 抽取结果使用通用 `records` 结构，不绑定商品字段。评论
 查看 Agent 任务记录：
 
 ```bash
-poetry run craw task list --limit 5
-poetry run craw agent inspect <task-id>
+craw task list --limit 5
+craw agent inspect <task-id>
 ```
 
 ### 确定性快路径
@@ -274,13 +282,13 @@ poetry run craw agent inspect <task-id>
 已有稳定平台任务仍可通过 CLI 触发：
 
 ```bash
-poetry run craw run keyword \
+craw run keyword \
   --platform xiaohongshu \
   --keywords "SKG" \
   --context <context-id> \
   --limit 100
 
-poetry run craw data export --task <task-id> --output /tmp/result.json
+craw data export --task <task-id> --output /tmp/result.json
 ```
 
 ## 🤖 AI Native 功能

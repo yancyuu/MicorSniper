@@ -27,7 +27,7 @@ alibabacloud-oss-v2 = "^1.2.1"
 python-dotenv = "^1.1.1"
 
 [tool.poetry.scripts]
-craw = "scripts.crawler_cli:main"
+craw = "crawler_cli.cmd.root:main"
 
 [tool.ruff]
 target-version = "py311"
