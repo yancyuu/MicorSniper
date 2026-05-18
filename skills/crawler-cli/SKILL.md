@@ -107,7 +107,7 @@ Observed behavior from safe smoke tests:
 - `--extract-mode text`: faster, but may miss `href` links and return only a DOM hint in `fields.dom_ref`.
 - `--extract-mode vision`: useful when text extraction is noisy, but may identify visible elements without resolving real URLs.
 
-If URL or stable ID is missing:
+If URL is missing:
 
 1. Treat the current result as a feed/list preview.
 2. Use `craw agent act` to open the specific card or record.
@@ -120,7 +120,6 @@ CLI extraction uses generic `records`, not product-only fields.
 ```json
 {
   "record_type": "comment | reply | product | note | user | link | text",
-  "record_id": "",
   "title": "",
   "text": "",
   "url": "",
@@ -136,7 +135,6 @@ CLI extraction uses generic `records`, not product-only fields.
 
 Rules:
 
-- Put stable platform IDs in `record_id` when visible or derivable from the URL.
 - `url` must be a real `http(s)` URL or an in-site path starting with `/`.
 - Never treat `dom_index:*` or element indexes as URLs.
 - If only an element reference is visible, put it in `fields.dom_ref`, then use `agent act` to open it before extracting again.

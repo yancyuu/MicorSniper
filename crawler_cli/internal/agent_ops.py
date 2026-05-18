@@ -79,7 +79,12 @@ async def agent_crawl(
         source_id="craw-agent",
         task_type="agent_crawl",
         context_id=ctx.id,
-        params={"start_url": start_url, "goal": goal, "max_steps": max_steps, "extract_mode": extract_mode},
+        params={
+            "start_url": start_url,
+            "goal": goal,
+            "max_steps": max_steps,
+            "extract_mode": extract_mode,
+        },
     )
     outputs: list[dict[str, Any]] = []
     try:

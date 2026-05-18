@@ -268,7 +268,7 @@ craw agent crawl \
 
 Agent 抽取结果使用通用 `records` 结构，不绑定商品字段。评论会以 `record_type=comment` 或 `record_type=reply` 输出，正文在 `text`，作者在 `author`，点赞/评论数等放在 `metrics`。
 `url` 字段只表示真实 `http(s)` 链接或以 `/` 开头的站内路径；如果 Agent 只能看到 `dom_index` 这类元素引用，会放到 `fields.dom_ref`，需要再用 `agent act` 打开该元素后抽取真实 URL。
-如果能从页面或链接识别平台内稳定 ID（例如小红书笔记 ID、商品 ID、评论 ID），会放在 `record_id`；列表页看不到 ID 时，先打开详情页再抽取。
+平台内稳定 ID 通常包含在 `url` 中，CLI 抽取结果不再单独输出 `record_id`；需要 ID 时从真实 URL 解析。列表页看不到真实 URL 时，先打开详情页再抽取。
 
 查看 Agent 任务记录：
 

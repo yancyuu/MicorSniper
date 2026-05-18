@@ -10,7 +10,6 @@ class AgentExtractRecord(BaseModel):
     """Agent 通用抽取记录，可表达商品、笔记、评论、回复等任意页面实体。"""
 
     record_type: str = Field(default="", description="记录类型，如 product/note/comment/reply/user/link/text")
-    record_id: str = Field(default="", description="平台内稳定 ID，如笔记 ID、商品 ID、评论 ID；没有则为空")
     title: str = Field(default="", description="记录标题或核心文本摘要；没有则为空")
     text: str = Field(default="", description="完整可见正文、评论内容或说明文本；没有则为空")
     url: str = Field(default="", description="真实 http(s) URL 或以 / 开头的站内路径；没有则为空，不要填写 dom_index")
@@ -20,7 +19,6 @@ class AgentExtractRecord(BaseModel):
     fields: dict[str, Any] = Field(default_factory=dict, description="目标要求的其他字段，按页面语义自由补充；DOM 引用可放 dom_ref")
     children: list[dict[str, Any]] = Field(default_factory=list, description="子记录，如评论下的回复")
     source: str = Field(default="", description="该记录来自页面的哪个区域或线索")
-    confidence: float = Field(default=0.0, description="0 到 1 的置信度")
 
 
 class AgentExtractResult(BaseModel):
@@ -77,7 +75,7 @@ def build_extract_instruction(goal: str) -> str:
         "url 字段只能填写真实 http(s) URL 或以 / 开头的站内路径；不要把 dom_index 或元素编号填入 url，"
         "如只有元素引用，请放到 fields.dom_ref，并在 next_action 里建议打开该记录以获取真实链接。"
         "fields 里只放语义字段；不要把 CSS 选择器、XPath 或 h1+p 这类定位表达式当成数据。"
-        "如果页面或链接中能识别平台内稳定 ID（如小红书笔记 ID、商品 ID、评论 ID），必须填入 record_id；"
-        "如果当前列表页看不到 ID，请留空并在 next_action 中建议打开详情页获取。"
+        "优先提取真实 url；平台内稳定 ID 通常可从 url 中解析，不需要单独输出。"
+        "如果当前列表页看不到真实 url，请留空并在 next_action 中建议打开详情页获取。"
         "如果信息不足，请给出下一步应执行的页面动作；如果目标已完成，done=true。"
     )

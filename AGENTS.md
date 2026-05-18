@@ -31,7 +31,6 @@ Preferred record shape:
 ```json
 {
   "record_type": "comment | reply | product | note | user | link | text",
-  "record_id": "",
   "title": "",
   "text": "",
   "url": "",
@@ -63,9 +62,9 @@ For links:
 
 For stable IDs:
 
-- Store platform-native IDs in `record_id` when visible or derivable from the URL.
-- Examples: Xiaohongshu note ID, product ID, comment ID, reply ID, user ID.
-- Do not invent IDs from titles. If only `dom_index:*` is available, leave `record_id` empty and open the detail page first.
+- Do not output a separate `record_id` in CLI extraction records.
+- Prefer real `url`; platform-native IDs should be parsed from `url` downstream when needed.
+- Do not invent IDs from titles. If only `dom_index:*` is available, open the detail page first.
 
 ## AgentBay Session Hygiene
 
