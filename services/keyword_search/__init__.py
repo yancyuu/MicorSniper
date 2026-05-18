@@ -5,11 +5,13 @@ from .base import KeywordSearchService
 from .jd import JdKeywordSearchService
 from .taobao import TaobaoKeywordSearchService
 from .tmall import TmallKeywordSearchService
+from .xiaohongshu import XiaohongshuKeywordSearchService
 
 _PROVIDERS: dict[str, type[KeywordSearchService]] = {
     "taobao": TaobaoKeywordSearchService,
     "tmall": TmallKeywordSearchService,
     "jd": JdKeywordSearchService,
+    "xiaohongshu": XiaohongshuKeywordSearchService,
 }
 
 

@@ -37,12 +37,14 @@ _KEYWORD_SEARCH_TASK_TYPES = {
     "taobao": "taobao_link_search",
     "tmall": "tmall_link_search",
     "jd": "jd_link_search",
+    "xiaohongshu": "xiaohongshu_link_search",
 }
 
 _CONTEXT_PLATFORM_CANDIDATES = {
     "taobao": ["taobao"],
     "tmall": ["taobao"],
     "jd": ["jd"],
+    "xiaohongshu": ["xiaohongshu"],
 }
 
 _ECOMMERCE_CONTEXT_CANDIDATES = {
