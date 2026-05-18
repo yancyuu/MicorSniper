@@ -15,6 +15,7 @@ Do not mix the two without a reason. If the user asks for generic crawling, comm
 
 CLI mode is a local operator tool, not a production scraper engine.
 
+- Before running `craw`, check `command -v craw`. If missing on a fresh machine, clone the repo, `cd Micro-Sniper`, and run `bash scripts/install_craw_cli.sh`; if already in the repo, run the installer from the repository root. Always verify with `craw --help`.
 - Use `agent.act()` to change browser state.
 - Use `agent.extract()` to read structured data from the current page.
 - Use `agent.navigate()` to open URLs.

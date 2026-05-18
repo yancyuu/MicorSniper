@@ -183,8 +183,16 @@ curl http://localhost:8000/health
 安装或刷新 CLI 入口。脚本会执行 `poetry install`，并在 `~/.local/bin/craw` 创建一个 shim；依赖仍由 Poetry 管理，不会污染系统 Python。
 
 ```bash
+git clone <micro-sniper-repo-url>
+cd Micro-Sniper
 bash scripts/install_craw_cli.sh
 craw --help
+```
+
+如果已经在项目目录里，直接执行：
+
+```bash
+bash scripts/install_craw_cli.sh
 ```
 
 如果 shell 提示 `craw: command not found`，把 `~/.local/bin` 加到 PATH：
