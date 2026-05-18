@@ -73,6 +73,7 @@ _DETECT_PLATFORM_JS = """
     if (host.includes('taobao.com')) return 'taobao';
     if (host.includes('tmall.com')) return 'tmall';
     if (host.includes('1688.com')) return '1688';
+    if (host.includes('xiaohongshu.com') || host.includes('xhslink.com')) return 'xiaohongshu';
     return 'unknown';
 }
 """
@@ -253,6 +254,8 @@ def _detect_channel_from_url(url: str) -> str:
         return "taobao"
     if "1688.com" in host:
         return "1688"
+    if "xiaohongshu.com" in host or "xhslink.com" in host:
+        return "xiaohongshu"
     return "unknown"
 
 

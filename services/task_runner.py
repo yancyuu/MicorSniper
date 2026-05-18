@@ -45,7 +45,7 @@ def cancel_running_task(task_id: str) -> bool:
 
 
 def _get_runner(task_type: str) -> TaskRunner:
-    if task_type in ("taobao_link_search", "jd_link_search", "tmall_link_search"):
+    if task_type in ("taobao_link_search", "jd_link_search", "tmall_link_search", "xiaohongshu_link_search"):
         platform = task_type.replace("_link_search", "")
         from services.keyword_search import get_keyword_search_service
         svc = get_keyword_search_service(platform)

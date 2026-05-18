@@ -5,7 +5,12 @@
       "Bash(curl:*)",
       "Bash(git fetch *)",
       "Bash(PYTHONPATH=. poetry run *)",
-      "Bash(poetry run *)"
+      "Bash(poetry run *)",
+      "Bash(python *)",
+      "Bash(echo \"PID: $!\")",
+      "Read(//tmp/**)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
     ]
   }
 }
