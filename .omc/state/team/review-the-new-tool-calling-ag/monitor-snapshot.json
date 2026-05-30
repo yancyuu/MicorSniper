@@ -1,0 +1,35 @@
+{
+  "taskStatusById": {
+    "1": "pending",
+    "2": "pending"
+  },
+  "workerAliveByName": {
+    "worker-1": true,
+    "worker-2": true
+  },
+  "workerLivenessByName": {
+    "worker-1": "alive",
+    "worker-2": "alive"
+  },
+  "workerStateByName": {
+    "worker-1": "unknown",
+    "worker-2": "unknown"
+  },
+  "workerTurnCountByName": {
+    "worker-1": 0,
+    "worker-2": 0
+  },
+  "workerTaskIdByName": {
+    "worker-1": "",
+    "worker-2": ""
+  },
+  "mailboxNotifiedByMessageId": {},
+  "completedEventTaskIds": {},
+  "monitorTimings": {
+    "list_tasks_ms": 0.61,
+    "worker_scan_ms": 16.08,
+    "mailbox_delivery_ms": 0,
+    "total_ms": 20.93,
+    "updated_at": "2026-05-30T00:54:24.411Z"
+  }
+}

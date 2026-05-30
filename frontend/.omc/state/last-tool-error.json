@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"poetry run python -c \\\"\\nfrom app.engine.agent import agent_generate\\nfrom app.engine.chat_router import chat_handle\\nfrom app.engine.smart_generate import smart_generate\\nprint('All impor...",
+  "error": "Exit code 1\n\nPoetry could not find a pyproject.toml file in /Users/yancy/code/Micro-Sniper/frontend or its parents",
+  "timestamp": "2026-05-30T02:35:01.955Z",
+  "retry_count": 1
+}

@@ -1,0 +1,120 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --color-surface: #ffffff;
+  --color-canvas: #ffffff;
+  --color-border: #e5e7eb;
+  --color-accent: #7c3aed;
+  --color-accent-light: #ede9fe;
+}
+
+@layer base {
+  html, body, #root {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    background: var(--color-canvas);
+    color: #18181b;
+  }
+
+  .react-flow__node { cursor: grab; }
+  .react-flow__node:active { cursor: grabbing; }
+
+  /* Edge styles */
+  .react-flow__edge-path {
+    stroke: #d4d4d8;
+    stroke-width: 2;
+  }
+  .react-flow__edge.selected .react-flow__edge-path {
+    stroke: #7c3aed;
+    stroke-width: 2.5;
+  }
+
+  /* Selection box */
+  .react-flow__selection {
+    background: rgba(124, 58, 237, 0.08);
+    border: 1px solid rgba(124, 58, 237, 0.3);
+  }
+}
+
+@keyframes pulse-amber {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
+  50% { box-shadow: 0 0 0 10px rgba(245, 158, 11, 0); }
+}
+
+.node-running {
+  animation: pulse-amber 1.5s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200px 0; }
+  100% { background-position: 200px 0; }
+}
+.screenshot-loading {
+  background: linear-gradient(90deg, rgba(255,255,255,0.3) 25%, rgba(255,255,255,0.6) 50%, rgba(255,255,255,0.3) 75%);
+  background-size: 200px 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-in {
+  animation: fade-in 0.15s ease-out;
+}
+
+/* Node entrance animation */
+@keyframes node-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.85) translateY(-12px);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    filter: blur(0);
+  }
+}
+.node-enter {
+  animation: node-enter 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Shimmer gradient for running nodes */
+@keyframes shimmer-gradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.animate-shimmer {
+  background-size: 200% 100%;
+  animation: shimmer-gradient 2s ease infinite;
+}
+
+/* Edge animation */
+@keyframes edge-dash {
+  to { stroke-dashoffset: -20; }
+}
+.react-flow__edge-path {
+  transition: stroke 0.3s ease;
+}
+
+/* Edge flowing animation when running */
+.edge-running .react-flow__edge-path {
+  stroke-dasharray: 6 4;
+  animation: edge-dash 0.6s linear infinite;
+  stroke: #f59e0b;
+  stroke-width: 2.5;
+}
+
+/* Flowing edge animation */
+@keyframes edge-flow {
+  to { stroke-dashoffset: -20; }
+}
+.edge-flow {
+  animation: edge-flow 1.2s linear infinite;
+}

@@ -1,0 +1,237 @@
+{
+  "name": "review-the-new-tool-calling-ag",
+  "task": "Worker 1: Review the new tool-calling agent generation system. Split into 2 inde; Worker 2: Review the new tool-calling agent generation system. Split into 2 inde",
+  "agent_type": "claude",
+  "worker_launch_mode": "interactive",
+  "policy": {
+    "display_mode": "split_pane",
+    "worker_launch_mode": "interactive",
+    "dispatch_mode": "hook_preferred_with_fallback",
+    "dispatch_ack_timeout_ms": 15000
+  },
+  "governance": {
+    "delegation_only": false,
+    "plan_approval_required": false,
+    "nested_teams_allowed": false,
+    "one_team_per_leader_session": true,
+    "cleanup_requires_all_workers_inactive": true
+  },
+  "worker_count": 2,
+  "max_workers": 20,
+  "workers": [
+    {
+      "name": "worker-1",
+      "index": 1,
+      "role": "claude",
+      "assigned_tasks": [],
+      "working_dir": "/Users/yancy/code/Micro-Sniper",
+      "team_state_root": "/Users/yancy/code/Micro-Sniper/.omc/state/team/review-the-new-tool-calling-ag",
+      "pane_id": "%1",
+      "worker_cli": "claude"
+    },
+    {
+      "name": "worker-2",
+      "index": 2,
+      "role": "claude",
+      "assigned_tasks": [],
+      "working_dir": "/Users/yancy/code/Micro-Sniper",
+      "team_state_root": "/Users/yancy/code/Micro-Sniper/.omc/state/team/review-the-new-tool-calling-ag",
+      "pane_id": "%2",
+      "worker_cli": "claude"
+    }
+  ],
+  "created_at": "2026-05-30T00:53:57.541Z",
+  "tmux_session": "omc-team-review-the-new-tool-calling-ag-mprn136g:0",
+  "tmux_window_owned": true,
+  "next_task_id": 3,
+  "leader_cwd": "/Users/yancy/code/Micro-Sniper",
+  "team_state_root": "/Users/yancy/code/Micro-Sniper/.omc/state/team/review-the-new-tool-calling-ag",
+  "leader_pane_id": "%0",
+  "hud_pane_id": null,
+  "resize_hook_name": null,
+  "resize_hook_target": null,
+  "resolved_routing": {
+    "orchestrator": {
+      "primary": {
+        "provider": "claude",
+        "model": "glm-5.1",
+        "agent": "omc"
+      },
+      "fallback": {
+        "provider": "claude",
+        "model": "glm-5.1",
+        "agent": "omc"
+      }
+    },
+    "planner": {
+      "primary": {
+        "provider": "claude",
+        "model": "glm-5.1",
+        "agent": "planner"
+      },
+      "fallback": {
+        "provider": "claude",
+        "model": "glm-5.1",
+        "agent": "planner"
+      }
+    },
+    "analyst": {
+      "primary": {
+        "provider": "claude",
+        "model": "glm-5.1",
+        "agent": "analyst"
+      },
+      "fallback": {
+        "provider": "claude",
+        "model": "glm-5.1",
+        "agent": "analyst"
+      }
+    },
+    "architect": {
+      "primary": {
+        "provider": "claude",
+        "model": "glm-5.1",
+        "agent": "architect"
+      },
+      "fallback": {
+        "provider": "claude",
+        "model": "glm-5.1",
+        "agent": "architect"
+      }
+    },
+    "executor": {
+      "primary": {
+        "provider": "claude",
+        "model": "glm-5-turbo",
+        "agent": "executor"
+      },
+      "fallback": {
+        "provider": "claude",
+        "model": "glm-5-turbo",
+        "agent": "executor"
+      }
+    },
+    "debugger": {
+      "primary": {
+        "provider": "claude",
+        "model": "glm-5-turbo",
+        "agent": "debugger"
+      },
+      "fallback": {
+        "provider": "claude",
+        "model": "glm-5-turbo",
+        "agent": "debugger"
+      }
+    },
+    "critic": {
+      "primary": {
+        "provider": "claude",
+        "model": "glm-5.1",
+        "agent": "critic"
+      },
+      "fallback": {
+        "provider": "claude",
+        "model": "glm-5.1",
+        "agent": "critic"
+      }
+    },
+    "code-reviewer": {
+      "primary": {
+        "provider": "claude",
+        "model": "glm-5.1",
+        "agent": "codeReviewer"
+      },
+      "fallback": {
+        "provider": "claude",
+        "model": "glm-5.1",
+        "agent": "codeReviewer"
+      }
+    },
+    "security-reviewer": {
+      "primary": {
+        "provider": "claude",
+        "model": "glm-5-turbo",
+        "agent": "securityReviewer"
+      },
+      "fallback": {
+        "provider": "claude",
+        "model": "glm-5-turbo",
+        "agent": "securityReviewer"
+      }
+    },
+    "test-engineer": {
+      "primary": {
+        "provider": "claude",
+        "model": "glm-5-turbo",
+        "agent": "testEngineer"
+      },
+      "fallback": {
+        "provider": "claude",
+        "model": "glm-5-turbo",
+        "agent": "testEngineer"
+      }
+    },
+    "designer": {
+      "primary": {
+        "provider": "claude",
+        "model": "glm-5-turbo",
+        "agent": "designer"
+      },
+      "fallback": {
+        "provider": "claude",
+        "model": "glm-5-turbo",
+        "agent": "designer"
+      }
+    },
+    "writer": {
+      "primary": {
+        "provider": "claude",
+        "model": "glm-4.5-air",
+        "agent": "writer"
+      },
+      "fallback": {
+        "provider": "claude",
+        "model": "glm-4.5-air",
+        "agent": "writer"
+      }
+    },
+    "code-simplifier": {
+      "primary": {
+        "provider": "claude",
+        "model": "glm-5.1",
+        "agent": "codeSimplifier"
+      },
+      "fallback": {
+        "provider": "claude",
+        "model": "glm-5.1",
+        "agent": "codeSimplifier"
+      }
+    },
+    "explore": {
+      "primary": {
+        "provider": "claude",
+        "model": "glm-4.5-air",
+        "agent": "explore"
+      },
+      "fallback": {
+        "provider": "claude",
+        "model": "glm-4.5-air",
+        "agent": "explore"
+      }
+    },
+    "document-specialist": {
+      "primary": {
+        "provider": "claude",
+        "model": "glm-5-turbo",
+        "agent": "documentSpecialist"
+      },
+      "fallback": {
+        "provider": "claude",
+        "model": "glm-5-turbo",
+        "agent": "documentSpecialist"
+      }
+    }
+  },
+  "workspace_mode": "single",
+  "worktree_mode": "disabled"
+}

@@ -1,0 +1,62 @@
+{
+  "schema_version": 2,
+  "name": "review-the-new-tool-calling-ag",
+  "task": "Worker 1: Review the new tool-calling agent generation system. Split into 2 inde; Worker 2: Review the new tool-calling agent generation system. Split into 2 inde",
+  "leader": {
+    "session_id": "omc-team-review-the-new-tool-calling-ag-mprn136g:0",
+    "worker_id": "leader-fixed",
+    "role": "leader"
+  },
+  "policy": {
+    "display_mode": "split_pane",
+    "worker_launch_mode": "interactive",
+    "dispatch_mode": "hook_preferred_with_fallback",
+    "dispatch_ack_timeout_ms": 15000
+  },
+  "governance": {
+    "delegation_only": false,
+    "plan_approval_required": false,
+    "nested_teams_allowed": false,
+    "one_team_per_leader_session": true,
+    "cleanup_requires_all_workers_inactive": true
+  },
+  "permissions_snapshot": {
+    "approval_mode": "default",
+    "sandbox_mode": "default",
+    "network_access": false
+  },
+  "tmux_session": "omc-team-review-the-new-tool-calling-ag-mprn136g:0",
+  "worker_count": 2,
+  "workers": [
+    {
+      "name": "worker-1",
+      "index": 1,
+      "role": "claude",
+      "assigned_tasks": [],
+      "working_dir": "/Users/yancy/code/Micro-Sniper",
+      "team_state_root": "/Users/yancy/code/Micro-Sniper/.omc/state/team/review-the-new-tool-calling-ag",
+      "pane_id": "%1",
+      "worker_cli": "claude"
+    },
+    {
+      "name": "worker-2",
+      "index": 2,
+      "role": "claude",
+      "assigned_tasks": [],
+      "working_dir": "/Users/yancy/code/Micro-Sniper",
+      "team_state_root": "/Users/yancy/code/Micro-Sniper/.omc/state/team/review-the-new-tool-calling-ag",
+      "pane_id": "%2",
+      "worker_cli": "claude"
+    }
+  ],
+  "next_task_id": 3,
+  "created_at": "2026-05-30T00:53:57.541Z",
+  "leader_cwd": "/Users/yancy/code/Micro-Sniper",
+  "team_state_root": "/Users/yancy/code/Micro-Sniper/.omc/state/team/review-the-new-tool-calling-ag",
+  "workspace_mode": "single",
+  "worktree_mode": "disabled",
+  "leader_pane_id": "%0",
+  "hud_pane_id": null,
+  "resize_hook_name": null,
+  "resize_hook_target": null
+}

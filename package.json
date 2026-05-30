@@ -1,0 +1,15 @@
+{
+  "name": "micro-sniper",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:frontend\"",
+    "dev:server": "cd server && poetry run python main.py",
+    "dev:frontend": "cd frontend && npx vite --port 3000",
+    "build": "cd frontend && npx vite build",
+    "start": "cd server && poetry run python main.py"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}

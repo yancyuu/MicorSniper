@@ -1,0 +1,452 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1780062390348,
+  "projectRoot": "/Users/yancy/code/Micro-Sniper",
+  "techStack": {
+    "languages": [
+      {
+        "name": "JavaScript/TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "package.json"
+        ]
+      }
+    ],
+    "frameworks": [],
+    "packageManager": "npm",
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": "cd /Users/yancy/code/Micro-Sniper/frontend && npx tsc --noEmit --pretty 2>&1 | head -100",
+    "testCommand": null,
+    "lintCommand": null,
+    "devCommand": "npm run dev",
+    "scripts": {
+      "dev": "concurrently \"npm run dev:server\" \"npm run dev:frontend\"",
+      "dev:server": "cd server && poetry run python main.py",
+      "dev:frontend": "cd frontend && npx vite --port 3000",
+      "build": "cd frontend && npx vite build",
+      "start": "cd server && poetry run python main.py"
+    }
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "docs"
+    ],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "__pycache__": {
+      "path": "__pycache__",
+      "purpose": null,
+      "fileCount": 2,
+      "lastAccessed": 1780062390335,
+      "keyFiles": [
+        "app.cpython-312.pyc",
+        "main.cpython-312.pyc"
+      ]
+    },
+    "data": {
+      "path": "data",
+      "purpose": "Data files",
+      "fileCount": 0,
+      "lastAccessed": 1780062390335,
+      "keyFiles": []
+    },
+    "docs": {
+      "path": "docs",
+      "purpose": "Documentation",
+      "fileCount": 1,
+      "lastAccessed": 1780062390335,
+      "keyFiles": [
+        "debug.md"
+      ]
+    },
+    "frontend": {
+      "path": "frontend",
+      "purpose": null,
+      "fileCount": 10,
+      "lastAccessed": 1780062390335,
+      "keyFiles": [
+        "README.md",
+        "eslint.config.js",
+        "index.html",
+        "package-lock.json",
+        "package.json"
+      ]
+    },
+    "server": {
+      "path": "server",
+      "purpose": null,
+      "fileCount": 4,
+      "lastAccessed": 1780062390335,
+      "keyFiles": [
+        "main.py",
+        "poetry.lock",
+        "pyproject.toml"
+      ]
+    },
+    "specs": {
+      "path": "specs",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1780062390335,
+      "keyFiles": []
+    },
+    "frontend/dist": {
+      "path": "frontend/dist",
+      "purpose": "Distribution/build output",
+      "fileCount": 3,
+      "lastAccessed": 1780062390336,
+      "keyFiles": [
+        "favicon.svg",
+        "icons.svg",
+        "index.html"
+      ]
+    },
+    "frontend/node_modules": {
+      "path": "frontend/node_modules",
+      "purpose": "Dependencies",
+      "fileCount": 1,
+      "lastAccessed": 1780062390336,
+      "keyFiles": []
+    },
+    "frontend/public": {
+      "path": "frontend/public",
+      "purpose": "Public files",
+      "fileCount": 2,
+      "lastAccessed": 1780062390336,
+      "keyFiles": [
+        "favicon.svg",
+        "icons.svg"
+      ]
+    },
+    "server/app": {
+      "path": "server/app",
+      "purpose": "Application code",
+      "fileCount": 4,
+      "lastAccessed": 1780062390337,
+      "keyFiles": [
+        "__init__.py",
+        "config.py",
+        "models.py"
+      ]
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "frontend/src/hooks/useWorkflow.ts",
+      "accessCount": 30,
+      "lastAccessed": 1780111764442,
+      "type": "file"
+    },
+    {
+      "path": "frontend/src/components/Canvas.tsx",
+      "accessCount": 18,
+      "lastAccessed": 1780102577073,
+      "type": "file"
+    },
+    {
+      "path": "frontend/src/components/nodes/WorkflowNode.tsx",
+      "accessCount": 16,
+      "lastAccessed": 1780107526522,
+      "type": "file"
+    },
+    {
+      "path": "frontend/src/App.tsx",
+      "accessCount": 16,
+      "lastAccessed": 1780111765057,
+      "type": "file"
+    },
+    {
+      "path": "frontend/src/components/ConfigPanel.tsx",
+      "accessCount": 14,
+      "lastAccessed": 1780073413873,
+      "type": "file"
+    },
+    {
+      "path": "config/settings.py",
+      "accessCount": 8,
+      "lastAccessed": 1779958190051,
+      "type": "file"
+    },
+    {
+      "path": "frontend/src/types/workflow.ts",
+      "accessCount": 7,
+      "lastAccessed": 1780102728533,
+      "type": "file"
+    },
+    {
+      "path": "app.py",
+      "accessCount": 6,
+      "lastAccessed": 1779958189994,
+      "type": "file"
+    },
+    {
+      "path": "frontend/src/index.css",
+      "accessCount": 6,
+      "lastAccessed": 1780071567738,
+      "type": "file"
+    },
+    {
+      "path": "frontend/src/components/FloatingPanel.tsx",
+      "accessCount": 6,
+      "lastAccessed": 1780073442658,
+      "type": "file"
+    },
+    {
+      "path": "engine/nodes/llm_extract.py",
+      "accessCount": 5,
+      "lastAccessed": 1779958425382,
+      "type": "file"
+    },
+    {
+      "path": "frontend/src/components/NodePalette.tsx",
+      "accessCount": 5,
+      "lastAccessed": 1779958579145,
+      "type": "file"
+    },
+    {
+      "path": "server/src/index.ts",
+      "accessCount": 5,
+      "lastAccessed": 1779963154712,
+      "type": "file"
+    },
+    {
+      "path": "engine/nodes/paginate.py",
+      "accessCount": 4,
+      "lastAccessed": 1779958373858,
+      "type": "file"
+    },
+    {
+      "path": "server/src/routes/sessions.ts",
+      "accessCount": 4,
+      "lastAccessed": 1779963843662,
+      "type": "file"
+    },
+    {
+      "path": "pyproject.toml",
+      "accessCount": 3,
+      "lastAccessed": 1779957878851,
+      "type": "file"
+    },
+    {
+      "path": "models/task.py",
+      "accessCount": 3,
+      "lastAccessed": 1779958039326,
+      "type": "file"
+    },
+    {
+      "path": "api/routes/sniper.py",
+      "accessCount": 3,
+      "lastAccessed": 1779958039521,
+      "type": "file"
+    },
+    {
+      "path": "api/routes/contexts.py",
+      "accessCount": 3,
+      "lastAccessed": 1779958045306,
+      "type": "file"
+    },
+    {
+      "path": "api/routes/__init__.py",
+      "accessCount": 3,
+      "lastAccessed": 1779958207105,
+      "type": "file"
+    },
+    {
+      "path": "engine/dag.py",
+      "accessCount": 3,
+      "lastAccessed": 1779958364123,
+      "type": "file"
+    },
+    {
+      "path": "engine/context_manager.py",
+      "accessCount": 3,
+      "lastAccessed": 1779958364353,
+      "type": "file"
+    },
+    {
+      "path": "engine/nodes/navigate.py",
+      "accessCount": 3,
+      "lastAccessed": 1779958364580,
+      "type": "file"
+    },
+    {
+      "path": "frontend/src/main.tsx",
+      "accessCount": 3,
+      "lastAccessed": 1779958579004,
+      "type": "file"
+    },
+    {
+      "path": "frontend/vite.config.ts",
+      "accessCount": 3,
+      "lastAccessed": 1779962188074,
+      "type": "file"
+    },
+    {
+      "path": "frontend/src/components/LogPanel.tsx",
+      "accessCount": 3,
+      "lastAccessed": 1779963390413,
+      "type": "file"
+    },
+    {
+      "path": "utils/logger.py",
+      "accessCount": 2,
+      "lastAccessed": 1779958066638,
+      "type": "file"
+    },
+    {
+      "path": "api/routes/workflows.py",
+      "accessCount": 2,
+      "lastAccessed": 1779958189888,
+      "type": "file"
+    },
+    {
+      "path": "models/workflow.py",
+      "accessCount": 2,
+      "lastAccessed": 1779958189940,
+      "type": "file"
+    },
+    {
+      "path": "frontend/tsconfig.app.json",
+      "accessCount": 2,
+      "lastAccessed": 1779958280315,
+      "type": "file"
+    },
+    {
+      "path": "engine/proxy_pool.py",
+      "accessCount": 2,
+      "lastAccessed": 1779958339006,
+      "type": "file"
+    },
+    {
+      "path": "engine/executor.py",
+      "accessCount": 2,
+      "lastAccessed": 1779958339059,
+      "type": "file"
+    },
+    {
+      "path": "engine/nodes/click.py",
+      "accessCount": 2,
+      "lastAccessed": 1779958348083,
+      "type": "file"
+    },
+    {
+      "path": "engine/nodes/css_extract.py",
+      "accessCount": 2,
+      "lastAccessed": 1779958348109,
+      "type": "file"
+    },
+    {
+      "path": "engine/nodes/context.py",
+      "accessCount": 2,
+      "lastAccessed": 1779958348167,
+      "type": "file"
+    },
+    {
+      "path": "frontend/src/components/Toolbar.tsx",
+      "accessCount": 2,
+      "lastAccessed": 1779958579022,
+      "type": "file"
+    },
+    {
+      "path": "package.json",
+      "accessCount": 2,
+      "lastAccessed": 1780073074565,
+      "type": "file"
+    },
+    {
+      "path": "main.py",
+      "accessCount": 1,
+      "lastAccessed": 1779956629007,
+      "type": "file"
+    },
+    {
+      "path": "static/index.html",
+      "accessCount": 1,
+      "lastAccessed": 1779956629996,
+      "type": "file"
+    },
+    {
+      "path": "scripts/jd_link_search.py",
+      "accessCount": 1,
+      "lastAccessed": 1779958061709,
+      "type": "file"
+    },
+    {
+      "path": "services/task_runner.py",
+      "accessCount": 1,
+      "lastAccessed": 1779958061762,
+      "type": "file"
+    },
+    {
+      "path": "mcp/__init__.py",
+      "accessCount": 1,
+      "lastAccessed": 1779958062940,
+      "type": "file"
+    },
+    {
+      "path": "mcp/exporter.py",
+      "accessCount": 1,
+      "lastAccessed": 1779958097558,
+      "type": "file"
+    },
+    {
+      "path": "engine/__init__.py",
+      "accessCount": 1,
+      "lastAccessed": 1779958100826,
+      "type": "file"
+    },
+    {
+      "path": "engine/nodes/__init__.py",
+      "accessCount": 1,
+      "lastAccessed": 1779958101057,
+      "type": "file"
+    },
+    {
+      "path": "mcp/server.py",
+      "accessCount": 1,
+      "lastAccessed": 1779958127711,
+      "type": "file"
+    },
+    {
+      "path": "saved_workflows/jd_keyword_search.json",
+      "accessCount": 1,
+      "lastAccessed": 1779958180766,
+      "type": "file"
+    },
+    {
+      "path": "frontend/tsconfig.node.json",
+      "accessCount": 1,
+      "lastAccessed": 1779958588348,
+      "type": "file"
+    },
+    {
+      "path": "server/src/engine/runner.ts",
+      "accessCount": 1,
+      "lastAccessed": 1779963825277,
+      "type": "file"
+    },
+    {
+      "path": "server/src/store.ts",
+      "accessCount": 1,
+      "lastAccessed": 1779963825328,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}

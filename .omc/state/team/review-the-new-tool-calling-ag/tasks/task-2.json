@@ -1,0 +1,15 @@
+{
+  "id": "2",
+  "subject": "Worker 2: Review the new tool-calling agent generation system. Split into 2 inde",
+  "description": "Review the new tool-calling agent generation system. Split into 2 independent reviews:\n\nWORKER 1 (backend): Review these files for correctness, edge cases, error handling, and potential bugs:\n- server/app/engine/agent.py (agent loop with LLM tool-calling)\n- server/app/engine/tools.py (tool schemas + executors)\n- server/app/routes/workflows.py (SSE generate endpoint changes)\nFocus on: tool execution correctness, SSE streaming reliability, error propagation, agent loop termination safety.\n\nWORKER 2 (frontend): Review these files for correctness, UX issues, and React patterns:\n- frontend/src/hooks/useWorkflow.ts (SSE streaming generate)\n- frontend/src/components/nodes/WorkflowNode.tsx (inline config redesign)\n- frontend/src/components/Canvas.tsx (prop threading)\n- frontend/src/App.tsx (FloatingPanel removal)\nFocus on: SSE parsing robustness, node card interaction correctness, missing edge cases, TypeScript safety.",
+  "status": "pending",
+  "owner": null,
+  "result": null,
+  "delegation": {
+    "mode": "auto",
+    "required_parallel_probe": true,
+    "skip_allowed_reason_required": true,
+    "child_report_format": "bullets"
+  },
+  "created_at": "2026-05-30T00:53:57.139Z"
+}

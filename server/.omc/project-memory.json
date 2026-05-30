@@ -1,0 +1,155 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1780068846006,
+  "projectRoot": "/Users/yancy/code/Micro-Sniper/server",
+  "techStack": {
+    "languages": [
+      {
+        "name": "Python",
+        "version": "^3.11",
+        "confidence": "high",
+        "markers": [
+          "pyproject.toml"
+        ]
+      }
+    ],
+    "frameworks": [],
+    "packageManager": "poetry",
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": "npx tsc --noEmit 2>&1 | head -10 && echo \"---\" && cd /Users/yancy/code/Micro-Sniper/server && poetry run python -c \"from app.engine.agent import agent_generate; from app.routes.workflows import router; print('Backend OK')\" 2>&1",
+    "testCommand": "pytest",
+    "lintCommand": "ruff check",
+    "devCommand": null,
+    "scripts": {}
+  },
+  "conventions": {
+    "namingStyle": "snake_case",
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "app"
+    ],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "__pycache__": {
+      "path": "__pycache__",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1780068845996,
+      "keyFiles": [
+        "main.cpython-312.pyc"
+      ]
+    },
+    "app": {
+      "path": "app",
+      "purpose": "Application code",
+      "fileCount": 5,
+      "lastAccessed": 1780068845996,
+      "keyFiles": [
+        "__init__.py",
+        "config.py",
+        "models.py",
+        "proxy_helper.py",
+        "store.py"
+      ]
+    },
+    "app/routes": {
+      "path": "app/routes",
+      "purpose": "Route handlers",
+      "fileCount": 4,
+      "lastAccessed": 1780068845996,
+      "keyFiles": [
+        "__init__.py",
+        "results.py",
+        "sessions.py"
+      ]
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "app/engine/tools.py",
+      "accessCount": 15,
+      "lastAccessed": 1780111051875,
+      "type": "file"
+    },
+    {
+      "path": "app/routes/workflows.py",
+      "accessCount": 6,
+      "lastAccessed": 1780111366731,
+      "type": "file"
+    },
+    {
+      "path": "app/engine/agent.py",
+      "accessCount": 4,
+      "lastAccessed": 1780111149816,
+      "type": "file"
+    },
+    {
+      "path": "app/routes/sessions.py",
+      "accessCount": 3,
+      "lastAccessed": 1780069750706,
+      "type": "file"
+    },
+    {
+      "path": "app/engine/smart_generate.py",
+      "accessCount": 3,
+      "lastAccessed": 1780070848741,
+      "type": "file"
+    },
+    {
+      "path": "app/engine/nodes.py",
+      "accessCount": 3,
+      "lastAccessed": 1780108550041,
+      "type": "file"
+    },
+    {
+      "path": "app/engine/chat_router.py",
+      "accessCount": 3,
+      "lastAccessed": 1780111189472,
+      "type": "file"
+    },
+    {
+      "path": "app/cookie_scanner.py",
+      "accessCount": 2,
+      "lastAccessed": 1780069808788,
+      "type": "file"
+    },
+    {
+      "path": ".env",
+      "accessCount": 2,
+      "lastAccessed": 1780071043271,
+      "type": "file"
+    },
+    {
+      "path": "app/proxy_helper.py",
+      "accessCount": 1,
+      "lastAccessed": 1780068898455,
+      "type": "file"
+    },
+    {
+      "path": "app/models.py",
+      "accessCount": 1,
+      "lastAccessed": 1780068907801,
+      "type": "file"
+    },
+    {
+      "path": "app/store.py",
+      "accessCount": 1,
+      "lastAccessed": 1780068907855,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}

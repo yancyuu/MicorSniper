@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "micro-sniper-server"
+version = "0.1.0"
+description = "Micro-Sniper canvas RPA server with crawl4ai"
+authors = ["yancy"]
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = ">=0.115.0"
+uvicorn = {version = ">=0.32.0", extras = ["standard"]}
+crawl4ai = ">=0.4.0"
+pydantic = ">=2.9.0"
+pydantic-settings = ">=2.5.0"
+python-dotenv = ">=1.0.0"
+aiofiles = ">=24.0.0"
+sse-starlette = ">=2.0.0"
+playwright-stealth = "^2.0.3"
+rookiepy = "^0.5.6"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

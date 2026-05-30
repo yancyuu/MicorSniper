@@ -1,0 +1,38 @@
+[
+  {
+    "request_id": "92d452cd-cb94-4851-877d-f1c6de4a79ab",
+    "kind": "inbox",
+    "team_name": "review-the-new-tool-calling-ag",
+    "to_worker": "worker-1",
+    "worker_index": 1,
+    "pane_id": "%1",
+    "trigger_message": "Read .omc/state/team/review-the-new-tool-calling-ag/workers/worker-1/inbox.md, execute now, report concrete progress.",
+    "inbox_correlation_key": "startup:worker-1:1",
+    "transport_preference": "transport_direct",
+    "fallback_allowed": true,
+    "status": "notified",
+    "attempt_count": 1,
+    "created_at": "2026-05-30T00:53:58.106Z",
+    "updated_at": "2026-05-30T00:53:58.744Z",
+    "notified_at": "2026-05-30T00:53:58.744Z",
+    "last_reason": "worker_pane_notified"
+  },
+  {
+    "request_id": "fbddb18a-036e-4515-b4f9-405c23f69911",
+    "kind": "inbox",
+    "team_name": "review-the-new-tool-calling-ag",
+    "to_worker": "worker-2",
+    "worker_index": 2,
+    "pane_id": "%2",
+    "trigger_message": "Read .omc/state/team/review-the-new-tool-calling-ag/workers/worker-2/inbox.md, execute now, report concrete progress.",
+    "inbox_correlation_key": "startup:worker-2:2",
+    "transport_preference": "transport_direct",
+    "fallback_allowed": true,
+    "status": "notified",
+    "attempt_count": 1,
+    "created_at": "2026-05-30T00:54:11.406Z",
+    "updated_at": "2026-05-30T00:54:12.032Z",
+    "notified_at": "2026-05-30T00:54:12.032Z",
+    "last_reason": "worker_pane_notified"
+  }
+]

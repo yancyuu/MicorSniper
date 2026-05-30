@@ -1,3 +1,11 @@
 .idea/
 .env
 *.pyc
+__pycache__/
+node_modules/
+
+# Runtime data — keep dir structure, ignore contents
+data/results/*.json
+data/sessions/*.json
+data/browser_profiles/
+!data/**/.gitkeep
