@@ -3,8 +3,26 @@ import { ReactFlowProvider, useReactFlow } from '@xyflow/react';
 import useWorkflow from './hooks/useWorkflow';
 import LogPanel from './components/LogPanel';
 import Canvas from './components/Canvas';
-import ChatPanel, { type ChatMessage } from './components/ChatPanel';
+import ChatPanel, { type ChatMessage, type ExecutionStep } from './components/ChatPanel';
 import type { NodeType } from './types/workflow';
+
+/** Parse thinking content to extract tool name hint */
+function parseToolFromThinking(content: string): { tool: string; detail: string } {
+  if (content.includes('打开')) return { tool: 'open_page', detail: content };
+  if (content.includes('Schema') || content.includes('schema')) return { tool: 'generate_schema', detail: content };
+  if (content.includes('CSS') || content.includes('css')) return { tool: 'css_extract', detail: content };
+  if (content.includes('AI') || content.includes('ai')) return { tool: 'ai_extract', detail: content };
+  return { tool: 'thinking', detail: content };
+}
+
+/** Map node type to readable label */
+const NODE_TYPE_LABELS: Record<string, string> = {
+  crawl: '爬取页面',
+  css_extract: 'CSS提取',
+  ai_extract: 'AI提取',
+  paginate: '翻页',
+  js_execute: 'JS执行',
+};
 
 function WorkflowEditor() {
   const {
@@ -61,6 +79,32 @@ function WorkflowEditor() {
     const abort = new AbortController();
     chatAbortRef.current = abort;
 
+    // Placeholder for streaming assistant message with steps tracking
+    const streamMsgId = `stream-${Date.now()}`;
+    const initialMsg: ChatMessage = {
+      role: 'assistant',
+      content: '',
+      timestamp: new Date().toISOString(),
+      _streamId: streamMsgId,
+      _thinking: true,
+      _steps: [],
+      _nodeCount: 0,
+    };
+    setMessages(prev => [...prev, initialMsg]);
+
+    // Track steps outside React to avoid stale closures
+    const steps: ExecutionStep[] = [];
+    let stepCounter = 0;
+
+    /** Add or update steps and sync to message state */
+    const syncSteps = (extras: Partial<ChatMessage> = {}) => {
+      setMessages(prev => prev.map(m =>
+        (m as any)._streamId === streamMsgId
+          ? { ...m, _steps: [...steps], ...extras } as ChatMessage
+          : m
+      ));
+    };
+
     try {
       const res = await fetch('/api/workflows/chat', {
         method: 'POST',
@@ -80,155 +124,153 @@ function WorkflowEditor() {
       const decoder = new TextDecoder();
       let buffer = '';
       let nodeCount = 0;
-      let replyText = '';
-      let isGenerate = false;
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
-        const parts = buffer.split('\n\n');
-        buffer = parts.pop() || '';
+        // NDJSON: split by newline, keep incomplete last line in buffer
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
 
-        for (const part of parts) {
-          if (!part.trim()) continue;
-
-          let eventType = 'message';
-          let eventData = '';
-          for (const line of part.split('\n')) {
-            if (line.startsWith('event:')) {
-              eventType = line.slice(6).trim();
-            } else if (line.startsWith('data:')) {
-              eventData += (eventData ? '\n' : '') + line.slice(5).trim();
-            }
-          }
-          if (!eventData) continue;
-
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          let event: any;
           try {
-            const payload = JSON.parse(eventData);
+            event = JSON.parse(line);
+          } catch {
+            continue;
+          }
 
-            if (eventType === 'reply') {
-              replyText = payload.reply || '处理中...';
-              isGenerate = payload.intent === 'generate';
-              if (isGenerate) clearCanvas();  // Only clear for new generation
-              const botMsg: ChatMessage = {
-                role: 'assistant',
-                content: replyText,
-                timestamp: new Date().toISOString(),
-              };
-              setMessages(prev => [...prev, botMsg]);
-            } else if (eventType === 'node') {
-              // Add node dynamically one by one
-              const { node, edge, reconnect_edge } = payload;
-              if (node) {
-                nodeCount++;
-                onNodesChange([{
-                  type: 'add',
-                  item: {
-                    id: node.id,
-                    type: 'workflowNode',
-                    position: node.position,
-                    data: node.data,
-                  },
-                }]);
-                if (edge) {
-                  onEdgesChange([{ type: 'add', item: {
-                    id: edge.id,
-                    source: edge.source,
-                    target: edge.target,
-                  }}]);
-                }
-                // Handle reconnection if node was inserted between two existing nodes
-                if (reconnect_edge) {
-                  onEdgesChange([{ type: 'remove', id: reconnect_edge.id }]);
-                }
-              }
-            } else if (eventType === 'node_update') {
-              // Update an existing node in place
-              const node = payload.node;
-              if (node) {
-                setNodes(prev => prev.map(n =>
-                  n.id === node.id ? { ...n, data: { ...n.data, ...node.data } } : n
-                ));
-              }
-            } else if (eventType === 'node_remove') {
-              // Remove a node and its edges
-              const { node_id, remove_edges, new_edge } = payload;
-              setNodes(prev => prev.filter(n => n.id !== node_id));
-              if (remove_edges) {
-                remove_edges.forEach((eid: string) => {
-                  onEdgesChange([{ type: 'remove', id: eid }]);
-                });
-              }
-              if (new_edge) {
-                onEdgesChange([{ type: 'add', item: new_edge }]);
-              }
-            } else if (eventType === 'result') {
-              // Non-generate intent result
-              const botMsg: ChatMessage = {
-                role: 'assistant',
-                content: payload.reply || '处理完成',
-                timestamp: new Date().toISOString(),
-                data: payload,
-              };
-              setMessages(prev => [...prev, botMsg]);
+          const eventType = event.type;
 
-              if (payload.nodes && payload.edges) {
-                clearCanvas();
-                payload.nodes.forEach((n: any) => {
-                  onNodesChange([{ type: 'add', item: {
-                    id: n.id, type: 'workflowNode', position: n.position, data: n.data,
-                  }}]);
-                });
-                payload.edges.forEach((e: any) => {
-                  onEdgesChange([{ type: 'add', item: e }]);
-                });
-              }
-
-              // Export
-              if (payload.export) {
-                const blob = new Blob(
-                  [JSON.stringify(payload.export.data, null, 2)],
-                  { type: 'application/json' }
-                );
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `export.${payload.export.format}`;
-                a.click();
-                URL.revokeObjectURL(url);
-              }
-            } else if (eventType === 'items') {
-              // Update last result
-              setLastResult(payload);
-            } else if (eventType === 'done') {
-              // Finished — update reply with node count
-              if (nodeCount > 0) {
-                setMessages(prev => {
-                  const last = prev[prev.length - 1];
-                  if (last?.role === 'assistant') {
-                    return [...prev.slice(0, -1), { ...last, content: `✅ 完成 ${nodeCount} 个节点` }];
-                  }
-                  return prev;
-                });
-              }
-            } else if (eventType === 'error') {
-              throw new Error(payload.error || '执行失败');
+          if (eventType === 'thinking') {
+            // Mark previous step as done, add new running step
+            if (steps.length > 0) {
+              steps[steps.length - 1].status = 'done';
             }
-          } catch (parseErr: any) {
-            if (!(parseErr instanceof SyntaxError)) throw parseErr;
+            const { tool, detail } = parseToolFromThinking(event.content || '');
+            stepCounter++;
+            steps.push({
+              id: `step-${stepCounter}`,
+              label: tool,
+              detail: detail,
+              status: 'running',
+              timestamp: Date.now(),
+            });
+            syncSteps({ _thinking: true });
+
+          } else if (eventType === 'text') {
+            // Agent reply text — mark all steps done
+            steps.forEach(s => { if (s.status === 'running') s.status = 'done'; });
+            syncSteps({ content: event.content, _thinking: false });
+
+          } else if (eventType === 'node') {
+            // Add node to canvas + update current step with badge
+            const { node, edge, reconnect_edge } = event;
+            if (node) {
+              nodeCount++;
+              const nodeType = node.data?.type || '';
+              // Update current running step with node badge
+              if (steps.length > 0 && steps[steps.length - 1].status === 'running') {
+                steps[steps.length - 1].nodeBadge = nodeType;
+                steps[steps.length - 1].detail = NODE_TYPE_LABELS[nodeType] || nodeType;
+              }
+              syncSteps({ _nodeCount: nodeCount });
+
+              onNodesChange([{
+                type: 'add',
+                item: {
+                  id: node.id,
+                  type: 'workflowNode',
+                  position: node.position,
+                  data: node.data,
+                },
+              }]);
+              if (edge) {
+                onEdgesChange([{ type: 'add', item: {
+                  id: edge.id, source: edge.source, target: edge.target,
+                }}]);
+              }
+              if (reconnect_edge) {
+                onEdgesChange([{ type: 'remove', id: reconnect_edge.id }]);
+              }
+            }
+
+          } else if (eventType === 'node_update') {
+            const node = event.node;
+            if (node) {
+              setNodes(prev => prev.map(n =>
+                n.id === node.id ? { ...n, data: { ...n.data, ...node.data } } : n
+              ));
+            }
+
+          } else if (eventType === 'node_remove') {
+            const { node_id, remove_edges, new_edge } = event;
+            setNodes(prev => prev.filter(n => n.id !== node_id));
+            if (remove_edges) {
+              remove_edges.forEach((eid: string) => {
+                onEdgesChange([{ type: 'remove', id: eid }]);
+              });
+            }
+            if (new_edge) {
+              onEdgesChange([{ type: 'add', item: new_edge }]);
+            }
+
+          } else if (eventType === 'finish') {
+            // Agent called finish — add finish step
+            if (steps.length > 0) {
+              steps[steps.length - 1].status = 'done';
+            }
+            stepCounter++;
+            steps.push({
+              id: `step-${stepCounter}`,
+              label: 'finish',
+              detail: event.summary || '工作流完成',
+              status: 'done',
+              timestamp: Date.now(),
+            });
+            syncSteps({ _thinking: false });
+
+          } else if (eventType === 'done') {
+            // Stream complete — finalize all steps
+            steps.forEach(s => { if (s.status === 'running') s.status = 'done'; });
+            syncSteps({
+              _thinking: false,
+              _streamId: undefined,
+              content: undefined, // don't override if text was already set
+              _nodeCount: nodeCount,
+            });
+            // Ensure content is set if not already
+            setMessages(prev => prev.map(m => {
+              if ((m as any)._streamId === streamMsgId) {
+                return {
+                  ...m,
+                  _streamId: undefined,
+                  content: m.content || (nodeCount > 0 ? `✅ 完成，共 ${nodeCount} 个节点` : '✅ 完成'),
+                } as ChatMessage;
+              }
+              return m;
+            }));
+
+          } else if (eventType === 'error') {
+            // Error — mark current step as error
+            if (steps.length > 0) {
+              steps[steps.length - 1].status = 'error';
+            }
+            syncSteps({ _thinking: false, _streamId: undefined });
+            throw new Error(event.error || '执行失败');
           }
         }
       }
     } catch (err: any) {
       if (err.name !== 'AbortError') {
-        const errMsg: ChatMessage = {
-          role: 'assistant',
-          content: `❌ ${err.message}`,
-          timestamp: new Date().toISOString(),
-        };
-        setMessages(prev => [...prev, errMsg]);
+        setMessages(prev => prev.map(m =>
+          (m as any)._streamId === streamMsgId
+            ? { ...m, content: `❌ ${err.message}`, _thinking: false, _streamId: undefined } as ChatMessage
+            : m
+        ));
       }
     } finally {
       setChatBusy(false);

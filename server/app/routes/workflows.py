@@ -1,10 +1,12 @@
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from datetime import datetime
 from sse_starlette.sse import EventSourceResponse
 from app.models import Workflow, SaveWorkflowRequest, RunWorkflowRequest, GenerateRequest
 from app.store import STORE
 from app.engine.runner import run_workflow
 from app.engine.agent import agent_run
+from app.engine.pydantic_agent import stream_chat
 from app.ws.handlers import manager
 import asyncio
 import json
@@ -165,60 +167,53 @@ async def smart_generate_endpoint(body: dict):
 
 @router.post("/chat")
 async def chat_endpoint(body: dict):
-    """Chat SSE — agent streams events in real-time (nodes, updates, removals)."""
+    """Chat NDJSON — Pydantic AI agent streams events in real-time.
+
+    Returns newline-delimited JSON (NDJSON) stream:
+    - {"type":"thinking","content":"..."} — agent is working
+    - {"type":"node","node":{...},"edge":{...}} — new node added
+    - {"type":"node_update","node":{...}} — node updated
+    - {"type":"node_remove","node_id":"..."} — node removed
+    - {"type":"text","content":"..."} — agent reply text (full so far)
+    - {"type":"finish","summary":"..."} — agent called finish
+    - {"type":"done","summary":"..."} — stream complete
+    - {"type":"error","error":"..."} — error
+    """
     message = ((body or {}).get("message") or "").strip()
     if not message:
         raise HTTPException(400, "message is required")
     workflow = (body or {}).get("workflow")
-    last_result = (body or {}).get("last_result")
     session_id = (body or {}).get("session_id") or "default"
 
-    async def event_stream():
-        queue: asyncio.Queue = asyncio.Queue()
+    current_nodes = []
+    current_edges = []
+    if workflow:
+        current_nodes = workflow.get("nodes", [])
+        current_edges = workflow.get("edges", [])
 
-        async def _run():
-            try:
-                from app.engine.chat_router import chat_handle
-                result = await chat_handle(message, workflow, last_result, session_id)
+    # Fetch available browser sessions for agent context
+    sessions = await STORE.list_sessions()
+    available_sessions = [
+        {"name": s.name, "url": s.url}
+        for s in sessions
+        if s.url  # only sessions with a URL
+    ]
 
-                # Stream all collected events
-                for evt in result.get("events", []):
-                    await queue.put(evt)
+    async def ndjson_stream():
+        async for event in stream_chat(
+            message=message,
+            session_id=session_id,
+            current_nodes=current_nodes,
+            current_edges=current_edges,
+            available_sessions=available_sessions,
+        ):
+            yield json.dumps(event, ensure_ascii=False) + "\n"
 
-                # Items event
-                items = result.get("items", [])
-                if items:
-                    await queue.put({"event": "items", "data": json.dumps(
-                        {"items": items[:10], "count": len(items)}, ensure_ascii=False
-                    )})
-
-                await queue.put({"event": "done", "data": json.dumps(
-                    {"summary": result.get("summary", ""), "item_count": len(items)},
-                    ensure_ascii=False
-                )})
-            except Exception as e:
-                import traceback
-                traceback.print_exc()
-                await queue.put({"event": "error", "data": json.dumps(
-                    {"error": str(e)}, ensure_ascii=False
-                )})
-            finally:
-                await queue.put(None)
-
-        task = asyncio.ensure_future(_run())
-        try:
-            while True:
-                item = await asyncio.wait_for(queue.get(), timeout=120)
-                if item is None:
-                    break
-                yield item
-        except asyncio.TimeoutError:
-            yield {"event": "error", "data": json.dumps({"error": "超时"})}
-        finally:
-            if not task.done():
-                task.cancel()
-
-    return EventSourceResponse(event_stream())
+    return StreamingResponse(
+        ndjson_stream(),
+        media_type="application/x-ndjson",
+        headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
+    )
 
 
 @router.post("/{wf_id}/stop")

@@ -1210,6 +1210,25 @@ test-full = ["adlfs", "aiohttp (!=4.0.0a0,!=4.0.0a1)", "backports-zstd ; python_
 tqdm = ["tqdm"]
 
 [[package]]
+name = "genai-prices"
+version = "0.0.62"
+description = "Calculate prices for calling LLM inference APIs."
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+files = [
+    {file = "genai_prices-0.0.62-py3-none-any.whl", hash = "sha256:5d9ab0d9e5d81e035f88bf591fb6a8dde527922786acf1ee2737358f7bbe0167"},
+    {file = "genai_prices-0.0.62.tar.gz", hash = "sha256:baf1ffa64be0d15577878216464d6a2d04244db5fbdf78d56bde43809e7aef44"},
+]
+
+[package.dependencies]
+httpx2 = ">=2.0"
+pydantic = ">=2.10"
+
+[package.extras]
+cli = ["pydantic-settings (>=2.11)", "rich (>=14.3.2)", "rich-argparse (>=1.7.2)"]
+
+[[package]]
 name = "greenlet"
 version = "3.5.1"
 description = "Lightweight in-process concurrent programming"
@@ -1301,6 +1320,21 @@ files = [
 [package.extras]
 docs = ["Sphinx", "furo"]
 test = ["objgraph", "psutil", "setuptools"]
+
+[[package]]
+name = "griffelib"
+version = "2.0.2"
+description = "Signatures for entire Python programs. Extract the structure, the frame, the skeleton of your project, to generate API documentation or find breaking changes in your API."
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+files = [
+    {file = "griffelib-2.0.2-py3-none-any.whl", hash = "sha256:925c857658fb1ba40c0772c37acbc2ab650bd794d9c1b9726922e36ea4117ea1"},
+    {file = "griffelib-2.0.2.tar.gz", hash = "sha256:3cf20b3bc470e83763ffbf236e0076b1211bac1bc67de13daf494640f2de707e"},
+]
+
+[package.extras]
+pypi = ["pip (>=24.0)", "platformdirs (>=4.2)", "wheel (>=0.42)"]
 
 [[package]]
 name = "h11"
@@ -1404,6 +1438,28 @@ socks = ["socksio (==1.*)"]
 trio = ["trio (>=0.22.0,<1.0)"]
 
 [[package]]
+name = "httpcore2"
+version = "2.2.0"
+description = "A minimal low-level HTTP client."
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+files = [
+    {file = "httpcore2-2.2.0-py3-none-any.whl", hash = "sha256:ce859f268bf8d34fa2d7753e09e4dd5194f557e1b3038439b68a89b2999572fa"},
+    {file = "httpcore2-2.2.0.tar.gz", hash = "sha256:10e0e142f1ecc1c1cb2a9ebbce82e57f16169f61d163ea336abf36799e89294b"},
+]
+
+[package.dependencies]
+certifi = "*"
+h11 = ">=0.16"
+
+[package.extras]
+asyncio = ["anyio (>=4.0,<5.0)"]
+http2 = ["h2 (>=3,<5)"]
+socks = ["socksio (==1.*)"]
+trio = ["trio (>=0.22.0,<1.0)"]
+
+[[package]]
 name = "httptools"
 version = "0.8.0"
 description = "A collection of framework independent HTTP protocol utils."
@@ -1488,6 +1544,31 @@ cli = ["click (==8.*)", "pygments (==2.*)", "rich (>=10,<14)"]
 http2 = ["h2 (>=3,<5)"]
 socks = ["socksio (==1.*)"]
 zstd = ["zstandard (>=0.18.0)"]
+
+[[package]]
+name = "httpx2"
+version = "2.2.0"
+description = "The next generation HTTP client."
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+files = [
+    {file = "httpx2-2.2.0-py3-none-any.whl", hash = "sha256:12347ebd2daeaefd50b529359778fff767082a09c5826752c963e71269722ff0"},
+    {file = "httpx2-2.2.0.tar.gz", hash = "sha256:f3428d59b1752b8f5629826277262fb4d65e3a683f48af8a5b16c4d012e0b801"},
+]
+
+[package.dependencies]
+anyio = "*"
+certifi = "*"
+httpcore2 = "2.2.0"
+idna = "*"
+
+[package.extras]
+brotli = ["brotli ; platform_python_implementation == \"CPython\"", "brotlicffi ; platform_python_implementation != \"CPython\""]
+cli = ["click (==8.*)", "pygments (==2.*)", "rich (>=10,<15)"]
+http2 = ["h2 (>=3,<5)"]
+socks = ["socksio (==1.*)"]
+zstd = ["zstandard (>=0.18.0) ; python_version <= \"3.13\""]
 
 [[package]]
 name = "huggingface-hub"
@@ -1795,6 +1876,18 @@ atomic-cache = ["atomicwrites"]
 interegular = ["interegular (>=0.3.1,<0.4.0)"]
 nearley = ["js2py"]
 regex = ["regex"]
+
+[[package]]
+name = "logfire-api"
+version = "4.34.0"
+description = "Shim for the Logfire SDK which does nothing unless Logfire is installed"
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+files = [
+    {file = "logfire_api-4.34.0-py3-none-any.whl", hash = "sha256:ca51498bb60e1e4505c90cc20f949d2d6dcf9d15cf5fd5a46f14016f2f638c4c"},
+    {file = "logfire_api-4.34.0.tar.gz", hash = "sha256:fcaeb3da0895c39a5e66caef25ffbe41b2e61918ed40fbc863ae98e2b4c82241"},
+]
 
 [[package]]
 name = "lxml"
@@ -2396,6 +2489,21 @@ realtime = ["websockets (>=13,<16)"]
 voice-helpers = ["numpy (>=2.0.2)", "sounddevice (>=0.5.1)"]
 
 [[package]]
+name = "opentelemetry-api"
+version = "1.42.1"
+description = "OpenTelemetry Python API"
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+files = [
+    {file = "opentelemetry_api-1.42.1-py3-none-any.whl", hash = "sha256:51a69edacadbc03a8950ace1c4c21099cacc538820ac2c9e36277e78cebba714"},
+    {file = "opentelemetry_api-1.42.1.tar.gz", hash = "sha256:56c63bea9f77b62856be8c47600474acad853b2924b99b1687c4cb6297166716"},
+]
+
+[package.dependencies]
+typing-extensions = ">=4.5.0"
+
+[[package]]
 name = "packaging"
 version = "26.2"
 description = "Core utilities for Python packages"
@@ -2780,6 +2888,65 @@ email = ["email-validator (>=2.0.0)"]
 timezone = ["tzdata ; python_version >= \"3.9\" and platform_system == \"Windows\""]
 
 [[package]]
+name = "pydantic-ai-slim"
+version = "1.104.0"
+description = "Agent Framework / shim to use Pydantic with LLMs, slim package"
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+files = [
+    {file = "pydantic_ai_slim-1.104.0-py3-none-any.whl", hash = "sha256:bab0b1ac74603c789a629e5dcb7a0a7f720d198ce7726cc2a891f819a973cf49"},
+    {file = "pydantic_ai_slim-1.104.0.tar.gz", hash = "sha256:b67e3a398de3d7d9a88d3ed17d042f46dba9fa2bb5bdb120e4ae5b5199dd776a"},
+]
+
+[package.dependencies]
+genai-prices = ">=0.0.56"
+griffelib = ">=2.0"
+httpx = ">=0.27"
+opentelemetry-api = ">=1.28.0"
+pydantic = ">=2.12"
+pydantic-graph = "1.104.0"
+typing-inspection = ">=0.4.0"
+
+[package.extras]
+a2a = ["fasta2a (>=0.6.1)"]
+ag-ui = ["ag-ui-protocol (>=0.1.10)", "starlette (>=0.45.3)"]
+anthropic = ["anthropic (>=0.105.0)"]
+bedrock = ["boto3 (>=1.42.63)"]
+cli = ["argcomplete (>=3.5.0)", "prompt-toolkit (>=3)", "pyperclip (>=1.9.0)", "pyyaml (>=6.0.2)", "rich (>=13)"]
+cohere = ["cohere (>=5.20.6) ; platform_system != \"Emscripten\""]
+dbos = ["dbos (>=2.10.0)"]
+duckduckgo = ["ddgs (>=9.0.0)"]
+evals = ["pydantic-evals (==1.104.0)"]
+exa = ["exa-py (>=2.0.0)"]
+fastmcp = ["fastmcp (>=3.3.0)"]
+google = ["google-genai (>=1.70.0)"]
+groq = ["groq (>=0.25.0)"]
+huggingface = ["hf-xet (<1.5.0) ; platform_machine == \"x86_64\" or platform_machine == \"amd64\" or platform_machine == \"AMD64\" or platform_machine == \"arm64\" or platform_machine == \"aarch64\"", "huggingface-hub (>=1.3.4,<2.0.0)"]
+logfire = ["logfire[httpx] (>=4.16.0)"]
+mcp = ["fastmcp-slim[client] (>=3.3.0)"]
+mistral = ["mistralai (>=2.0.0,!=2.4.6)"]
+openai = ["openai (>=2.29.0)", "tiktoken (>=0.12.0)"]
+openrouter = ["openai (>=2.8.0)"]
+outlines-llamacpp = ["outlines[llamacpp] (>=1.0.0,<1.3.0) ; python_version < \"3.14\""]
+outlines-mlxlm = ["outlines[mlxlm] (>=1.0.0,<1.3.0) ; python_version < \"3.14\" and platform_system == \"Darwin\" and platform_machine == \"arm64\""]
+outlines-sglang = ["outlines[sglang] (>=1.0.0,<1.3.0) ; python_version < \"3.14\"", "pillow (>=12.2.0) ; python_version < \"3.14\""]
+outlines-transformers = ["outlines[transformers] (>=1.0.0,<1.3.0) ; python_version < \"3.14\" and (sys_platform != \"darwin\" or platform_machine != \"x86_64\")", "pillow (>=12.2.0) ; python_version < \"3.14\"", "torch (>=2.8.0) ; python_version < \"3.14\" and (sys_platform != \"darwin\" or platform_machine != \"x86_64\")", "transformers (>=4.0.0) ; python_version < \"3.14\""]
+outlines-vllm-offline = ["outlines (>=1.0.0,<1.3.0) ; python_version < \"3.14\"", "torch (>=2.8.0) ; python_version < \"3.14\" and (sys_platform != \"darwin\" or platform_machine != \"x86_64\")", "vllm (>=0.20.0) ; python_version < \"3.12\" and (sys_platform != \"darwin\" or platform_machine != \"x86_64\")"]
+prefect = ["prefect (>=3.6.13)"]
+retries = ["tenacity (>=8.2.3)"]
+sentence-transformers = ["sentence-transformers (>=5.2.0) ; python_version < \"3.14\""]
+spec = ["pydantic-handlebars (>=0.1.0)", "pyyaml (>=6.0.2)"]
+tavily = ["tavily-python (>=0.5.0)"]
+temporal = ["temporalio (>=1.24.0)"]
+ui = ["starlette (>=0.45.3)"]
+vertexai = ["google-auth (>=2.36.0)", "requests (>=2.32.2)"]
+voyageai = ["voyageai (>=0.3.7) ; python_version < \"3.14\""]
+web = ["httpx (>=0.27.0)", "starlette (>=0.45.3)", "uvicorn (>=0.38.0)"]
+web-fetch = ["markdownify (>=1.2)"]
+xai = ["xai-sdk (>=1.6.0)"]
+
+[[package]]
 name = "pydantic-core"
 version = "2.46.4"
 description = "Core functionality for Pydantic validation and serialization"
@@ -2911,6 +3078,24 @@ files = [
 
 [package.dependencies]
 typing-extensions = ">=4.14.1"
+
+[[package]]
+name = "pydantic-graph"
+version = "1.104.0"
+description = "Graph and state machine library"
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+files = [
+    {file = "pydantic_graph-1.104.0-py3-none-any.whl", hash = "sha256:09f962be494b1b2855e748b0bae116797cdbd4194834af61b4591048ab0fba35"},
+    {file = "pydantic_graph-1.104.0.tar.gz", hash = "sha256:fbaa7d2eff41c32c987e9b3751d99c27bb9e0172a72e561774139c739b01a2d7"},
+]
+
+[package.dependencies]
+httpx = ">=0.27"
+logfire-api = ">=3.14.1"
+pydantic = ">=2.12"
+typing-inspection = ">=0.4.0"
 
 [[package]]
 name = "pydantic-settings"
@@ -4617,4 +4802,4 @@ type = ["pytest-mypy (>=1.0.1) ; platform_python_implementation != \"PyPy\""]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "6177ca30b27f2c74ba10ed422d14845c2627e0a12ae90da8f2ae81aa886fc639"
+content-hash = "aa83c1da48984e87ba8486c79493b4caf7b7796180f16a57d6736505852cfddd"

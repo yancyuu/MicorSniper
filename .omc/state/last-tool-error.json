@@ -1,7 +1,7 @@
 {
-  "tool_name": "Read",
-  "tool_input_preview": "{\"file_path\":\"/Users/yancy/code/Micro-Sniper/pyproject.toml\"}",
-  "error": "File does not exist. Note: your current working directory is /Users/yancy/code/Micro-Sniper.",
-  "timestamp": "2026-05-30T03:28:53.908Z",
-  "retry_count": 2
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"cd /Users/yancy/code/Micro-Sniper/server && poetry run python -c \\\"\\nfrom app.engine.pydantic_agent import get_agent\\nagent = get_agent()\\n# Check tools via internal API\\nprint('Agent type...",
+  "error": "Exit code 1\nTraceback (most recent call last):\n  File \"<string>\", line 6, in <module>\nAttributeError: 'Agent' object has no attribute '_toolset'. Did you mean: 'toolset'?\nAgent type: <class 'pydantic_ai.agent.Agent'>",
+  "timestamp": "2026-05-30T04:03:36.603Z",
+  "retry_count": 1
 }

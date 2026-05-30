@@ -149,8 +149,14 @@
   "hotPaths": [
     {
       "path": "frontend/src/hooks/useWorkflow.ts",
-      "accessCount": 30,
-      "lastAccessed": 1780111764442,
+      "accessCount": 31,
+      "lastAccessed": 1780112326421,
+      "type": "file"
+    },
+    {
+      "path": "frontend/src/App.tsx",
+      "accessCount": 24,
+      "lastAccessed": 1780113154451,
       "type": "file"
     },
     {
@@ -163,12 +169,6 @@
       "path": "frontend/src/components/nodes/WorkflowNode.tsx",
       "accessCount": 16,
       "lastAccessed": 1780107526522,
-      "type": "file"
-    },
-    {
-      "path": "frontend/src/App.tsx",
-      "accessCount": 16,
-      "lastAccessed": 1780111765057,
       "type": "file"
     },
     {
@@ -185,8 +185,8 @@
     },
     {
       "path": "frontend/src/types/workflow.ts",
-      "accessCount": 7,
-      "lastAccessed": 1780102728533,
+      "accessCount": 8,
+      "lastAccessed": 1780112456307,
       "type": "file"
     },
     {

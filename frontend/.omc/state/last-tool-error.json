@@ -1,7 +1,7 @@
 {
   "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"poetry run python -c \\\"\\nfrom app.engine.agent import agent_generate\\nfrom app.engine.chat_router import chat_handle\\nfrom app.engine.smart_generate import smart_generate\\nprint('All impor...",
-  "error": "Exit code 1\n\nPoetry could not find a pyproject.toml file in /Users/yancy/code/Micro-Sniper/frontend or its parents",
-  "timestamp": "2026-05-30T02:35:01.955Z",
+  "tool_input_preview": "{\"command\":\"cd /Users/yancy/code/Micro-Sniper/server && poetry run python -c \\\"\\nfrom app.engine.pydantic_agent import stream_chat, get_agent, CrawlDeps\\nprint('✅ imports OK')\\n# Check that agent has ...",
+  "error": "Exit code 1\nTraceback (most recent call last):\n  File \"<string>\", line 5, in <module>\n  File \"/Users/yancy/code/Micro-Sniper/server/app/engine/pydantic_agent.py\", line 613, in get_agent\n    _agent = create_agent()\n             ^^^^^^^^^^^^^^\n  File \"/Users/yancy/code/Micro-Sniper/server/app/engine/pydantic_agent.py\", line 208, in create_agent\n    agent = Agent(\n            ^^^^^^\n  File \"/Users/yancy/Library/Caches/pypoetry/virtualenvs/micro-sniper-server-o0BdXI7N-py3.12/lib/python3.12/site-pack...",
+  "timestamp": "2026-05-30T03:57:29.377Z",
   "retry_count": 1
 }
